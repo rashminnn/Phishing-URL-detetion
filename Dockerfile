@@ -1,26 +1,15 @@
-# ===================== STAGE 1: Build React Frontend =====================
-FROM node:18 AS frontend-build
-
+FROM node:18 as build
 WORKDIR /app
-
-# Copy and install dependencies
 COPY package*.json ./
 RUN npm install
-
-# Copy frontend code and build it
 COPY . ./
 RUN npm run build
 
-
-# ===================== STAGE 2: Flask Backend =====================
 FROM python:3.11-slim
-
 WORKDIR /app
 
-# Copy built frontend from previous stage
-COPY --from=frontend-build /app/build ./build
-
-# Copy backend code and model
+# Copy files
+COPY --from=build /app/build ./build
 COPY requirements.txt .
 COPY app.py .
 COPY phishing_model_xgboost.pkl .
@@ -29,17 +18,15 @@ COPY phishing_model_xgboost.pkl .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables
-ENV SECRET_KEY="your-secret-key"
+ENV PRODUCTION=True
+ENV SECRET_KEY=b5da9cc96d22fbc606d7ff6c16e9a309d14108e45627ea79a7092dc9c8e3a6ec
 ENV MODEL_PATH=./phishing_model_xgboost.pkl
-# PORT will be passed by Railway, default fallback is optional
-ENV PORT=5000
+# Hardcode port in environment
+ENV PORT=8080
 
-# Create non-root user (security best practice)
-RUN useradd -m appuser && chown -R appuser /app
+# Create a non-root user
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose the port (optional, for documentation)
-EXPOSE 5000
-
-# Run Flask app using Gunicorn
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--threads", "8", "--timeout", "120"]
+# Hardcoded port with no variable expansion
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "120"]
