@@ -37,15 +37,33 @@ logger = logging.getLogger('phishing_detector')
 
 # ===================== MODEL LOADING =====================
 try:
-    # Use environment variable or default to local path, with a more deployment-friendly fallback
-    MODEL_PATH = os.environ.get('MODEL_PATH', 'phishing_model_xgboost.pkl')
+    MODEL_PATH = os.environ.get('MODEL_PATH', './phishing_model_xgboost.pkl')
+    
+    # Check if file exists
+    if not os.path.exists(MODEL_PATH):
+        logger.error(f"Model file not found at {MODEL_PATH}")
+        # Try alternative paths
+        alternative_paths = [
+            'phishing_model_xgboost.pkl',
+            '/app/phishing_model_xgboost.pkl',
+            './app/phishing_model_xgboost.pkl'
+        ]
+        for alt_path in alternative_paths:
+            if os.path.exists(alt_path):
+                MODEL_PATH = alt_path
+                logger.info(f"Found model at alternative path: {MODEL_PATH}")
+                break
+    
     model = joblib.load(MODEL_PATH)
     logger.info(f"Model loaded successfully from {MODEL_PATH}")
-    # Log the expected number of features for debugging
+    
     if hasattr(model, 'n_features_in_'):
         logger.info(f"Model expects {model.n_features_in_} features")
+        
 except Exception as e:
     logger.error(f"Failed to load model: {e}")
+    logger.error(f"Current working directory: {os.getcwd()}")
+    logger.error(f"Files in current directory: {os.listdir('.')}")
     model = None
 
 # ===================== RESULT CACHING =====================
@@ -594,19 +612,10 @@ def analyze_url(url):
     
     return result
 
-# ===================== FLASK ROUTES =====================
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    """Serve the frontend React app"""
-    if path != "" and os.path.exists(app.static_folder + '/' + path):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
-
+# ===================== API ROUTES (Move these first) =====================
 @app.route('/api')
 def api_root():
     """API root endpoint"""
-    # Generate a unique session ID if not present
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
         session['history'] = []
@@ -755,6 +764,29 @@ def page_not_found(e):
 def internal_server_error(e):
     """Handle internal server errors"""
     return jsonify({'error': 'Internal server error', 'message': 'An unexpected error occurred'}), 500
+
+# Add this route for Railway health checks
+@app.route('/health')
+def health_check():
+    """Health check for Railway"""
+    return jsonify({
+        'status': 'healthy',
+        'model_loaded': model is not None,
+        'timestamp': datetime.now().isoformat()
+    }), 200
+
+# ===================== FRONTEND SERVING (Put this LAST) =====================
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    """Serve the frontend React app - MUST BE LAST ROUTE"""
+    # Only serve frontend for non-API routes
+    if path.startswith('api/'):
+        return jsonify({'error': 'API endpoint not found'}), 404
+        
+    if path != "" and os.path.exists(app.static_folder + '/' + path):
+        return send_from_directory(app.static_folder, path)
+    return send_from_directory(app.static_folder, 'index.html')
 
 # ===================== APPLICATION STARTUP =====================
 if __name__ == '__main__':
