@@ -1,22 +1,18 @@
-FROM python:3.11-slim
-
+FROM node:18 as build
 WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . ./
+RUN npm run build
 
-# Copy requirements and install dependencies
+FROM python:3.11.8-slim
+WORKDIR /app
+COPY --from=build /app/build ./build
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy model and application code
-COPY phishing_model_xgboost.pkl .
 COPY app.py .
-
-# Set environment variables
-ENV MODEL_PATH="./phishing_model_xgboost.pkl"
-ENV FLASK_ENV="production"
+COPY phishing_model_xgboost.pkl .
+RUN pip install --no-cache-dir -r requirements.txt
+ENV PRODUCTION=True
 ENV PORT=8080
 
-# Expose the port
-EXPOSE 8080
-
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+CMD gunicorn app:app --bind 0.0.0.0:$PORT

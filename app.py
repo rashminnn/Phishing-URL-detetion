@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, send_from_directory
 from urllib.parse import urlparse, unquote
 import re
 import os
@@ -11,15 +11,15 @@ import hashlib
 from datetime import datetime, timedelta
 from functools import lru_cache
 import uuid
-from flask_cors import CORS  # Added for React integration
+from flask_cors import CORS
 
 # ===================== APPLICATION SETUP =====================
-app = Flask(__name__)
+app = Flask(__name__, static_folder='build', static_url_path='/')
 CORS(app)  # Enable CORS for all routes
 
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
-# Modified for development
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+# Set to True in production with HTTPS
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('PRODUCTION', 'False').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024  # 2KB max request size
@@ -37,7 +37,8 @@ logger = logging.getLogger('phishing_detector')
 
 # ===================== MODEL LOADING =====================
 try:
-    MODEL_PATH = os.environ.get('MODEL_PATH', 'C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl')
+    # Use environment variable or default to local path, with a more deployment-friendly fallback
+    MODEL_PATH = os.environ.get('MODEL_PATH', 'phishing_model_xgboost.pkl')
     model = joblib.load(MODEL_PATH)
     logger.info(f"Model loaded successfully from {MODEL_PATH}")
     # Log the expected number of features for debugging
@@ -594,8 +595,16 @@ def analyze_url(url):
     return result
 
 # ===================== FLASK ROUTES =====================
-@app.route('/')
-def home():
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    """Serve the frontend React app"""
+    if path != "" and os.path.exists(app.static_folder + '/' + path):
+        return send_from_directory(app.static_folder, path)
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/api')
+def api_root():
     """API root endpoint"""
     # Generate a unique session ID if not present
     if 'session_id' not in session:
@@ -606,15 +615,15 @@ def home():
         'status': 'success',
         'message': 'PhishGuard API is running',
         'endpoints': {
-            'test': '/test',
-            'predict': '/predict',
-            'feedback': '/feedback',
+            'test': '/api/test',
+            'predict': '/api/predict',
+            'feedback': '/api/feedback',
             'check': '/api/check',
-            'history': '/history'
+            'history': '/api/history'
         }
     })
 
-@app.route('/test', methods=['GET'])
+@app.route('/api/test', methods=['GET'])
 def test_api():
     """Simple endpoint to test if the API is working"""
     return jsonify({
@@ -623,7 +632,7 @@ def test_api():
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/predict', methods=['POST'])
+@app.route('/api/predict', methods=['POST'])
 def predict():
     """Process a URL and return phishing analysis results"""
     if request.method == 'POST':
@@ -663,7 +672,7 @@ def predict():
             logger.error(f"Request error: {str(e)}")
             return jsonify({'error': 'An unexpected error occurred while processing your request'}), 500
 
-@app.route('/feedback', methods=['POST'])
+@app.route('/api/feedback', methods=['POST'])
 def feedback():
     """Handle user feedback for false positives or false negatives"""
     if not request.is_json:
@@ -731,7 +740,7 @@ def api_check():
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during URL analysis'}), 500
 
-@app.route('/history')
+@app.route('/api/history')
 def history():
     """Return user's URL checking history as JSON"""
     history = session.get('history', [])
@@ -755,5 +764,6 @@ if __name__ == '__main__':
         print("ERROR: Model failed to load. Check the logs for details.")
         exit(1)
     
-    # Development server configuration
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Use PORT environment variable for Railway deployment
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)

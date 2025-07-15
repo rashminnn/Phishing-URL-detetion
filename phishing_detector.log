@@ -166,3 +166,27 @@
 2025-07-16 01:39:23,093 - werkzeug - INFO -  * Debugger PIN: 797-069-327
 2025-07-16 01:39:46,831 - werkzeug - INFO -  * Detected change in 'C:\\Program Files\\Python311\\Lib\\os.py', reloading
 2025-07-16 01:39:48,114 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 01:40:14,242 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 01:40:14,242 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 01:40:15,194 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 01:40:15,194 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 01:40:15,221 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 01:40:18,538 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 01:40:18,547 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 01:40:18,590 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 01:40:18,616 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 01:40:30,195 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:40:30] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 01:40:30,456 - phishing_detector - INFO - Analysis [b088a18c] started for URL: https://phishtank.org/
+2025-07-16 01:40:30,456 - phishing_detector - INFO - Analysis [b088a18c] completed: LEGITIMATE (Verified Domain)
+2025-07-16 01:40:30,456 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:40:30] "POST /predict HTTP/1.1" 200 -
+2025-07-16 01:40:40,921 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:40:40] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 01:40:41,171 - phishing_detector - INFO - Analysis [c425bc9f] started for URL: https://fly.io/dashboard/rashmin-munasinghe/new
+2025-07-16 01:40:41,246 - phishing_detector - INFO - Analysis [c425bc9f] completed in 0.075s: PHISHING (confidence: 0.72)
+2025-07-16 01:40:41,248 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:40:41] "POST /predict HTTP/1.1" 200 -
+2025-07-16 01:41:08,483 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:41:08] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 01:41:08,749 - phishing_detector - INFO - Analysis [25b874a5] started for URL: https://bpcreditohs.top/bpcr/
+2025-07-16 01:41:08,778 - phishing_detector - INFO - Analysis [25b874a5] completed in 0.029s: PHISHING (confidence: 0.80)
+2025-07-16 01:41:08,780 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:41:08] "POST /predict HTTP/1.1" 200 -
