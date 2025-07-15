@@ -273,3 +273,17 @@
 2025-07-16 04:30:53,321 - phishing_detector - INFO - Analysis [d738bcb0] started for URL: https://claude.ai/chat/958520c3-e58b-4824-9060-5335826b7759
 2025-07-16 04:30:53,321 - phishing_detector - INFO - Analysis [d738bcb0] completed: LEGITIMATE (Verified Domain)
 2025-07-16 04:30:53,321 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:30:53] "POST /predict HTTP/1.1" 200 -
+2025-07-16 04:39:55,059 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 04:39:56,034 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 04:39:56,034 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 04:39:56,073 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 04:40:03,073 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:40:03,135 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 04:40:03,193 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 04:42:02,097 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:42:02] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:42:02,364 - phishing_detector - INFO - Analysis [8d045a37] started for URL: https://data.mendeley.com/datasets/vfszbj9b36/1
+2025-07-16 04:42:02,431 - phishing_detector - INFO - Analysis [8d045a37] completed in 0.067s: LEGITIMATE (confidence: 0.14)
+2025-07-16 04:42:02,431 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:42:02] "POST /predict HTTP/1.1" 200 -
