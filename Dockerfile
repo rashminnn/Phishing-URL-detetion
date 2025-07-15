@@ -14,17 +14,23 @@ COPY requirements.txt .
 COPY app.py .
 COPY phishing_model_xgboost.pkl .
 
-# Install Python dependencies with clear error output
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables
 ENV PRODUCTION=True
-ENV PORT=8080
 ENV SECRET_KEY=ba04e2f1-06c4-41f5-9bc1-be2b665c7d23
 
+# Create a startup script that properly handles the PORT variable
+RUN echo '#!/bin/bash\n\
+PORT="${PORT:-8080}"\n\
+echo "Starting PhishGuard on port $PORT"\n\
+exec gunicorn app:app --bind 0.0.0.0:$PORT' > /app/start.sh && \
+chmod +x /app/start.sh
+
 # Create a non-root user and switch to it
-RUN useradd -m appuser
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Use shell form of CMD to enable variable substitution
-CMD gunicorn app:app --bind 0.0.0.0:8080
+# Use the startup script
+CMD ["/app/start.sh"]
