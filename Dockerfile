@@ -1,14 +1,22 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy model and application code
+COPY phishing_model_xgboost.pkl .
+COPY app.py .
 
+# Set environment variables
+ENV MODEL_PATH="./phishing_model_xgboost.pkl"
+ENV FLASK_ENV="production"
 ENV PORT=8080
-ENV MODEL_PATH=./phishing_model_xgboost.pkl
-ENV FLASK_ENV=production
 
-CMD gunicorn --bind 0.0.0.0:$PORT app:app
+# Expose the port
+EXPOSE 8080
+
+# Run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]

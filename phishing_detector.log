@@ -117,3 +117,52 @@
 2025-07-16 00:09:34,588 - phishing_detector - INFO - Analysis [945183d3] started for URL: https://dashboard.render.com/
 2025-07-16 00:09:34,604 - phishing_detector - INFO - Analysis [945183d3] completed in 0.016s: LEGITIMATE (confidence: 0.41)
 2025-07-16 00:09:34,607 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 00:09:34] "POST /predict HTTP/1.1" 200 -
+2025-07-16 01:10:55,295 - phishing_detector - INFO - Model loaded successfully from ./phishing_model_xgboost.pkl
+2025-07-16 01:10:56,413 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.220.42:8080
+2025-07-16 01:10:56,414 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 01:24:16,668 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:24:16] "GET / HTTP/1.1" 200 -
+2025-07-16 01:24:16,759 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:24:16] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-07-16 01:26:46,203 - phishing_detector - INFO - Model loaded successfully from ./phishing_model_xgboost.pkl
+2025-07-16 01:26:47,174 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.220.42:8080
+2025-07-16 01:26:47,175 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 01:29:35,030 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishguard-react/phishing_model_xgboost.pkl
+2025-07-16 01:29:36,018 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.220.42:8080
+2025-07-16 01:29:36,022 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 01:35:00,521 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 01:35:00,552 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 01:35:01,485 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.220.42:8080
+2025-07-16 01:35:01,485 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 01:38:22,537 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 01:38:23,527 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 01:38:23,537 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 01:38:23,581 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 01:38:27,224 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 01:38:27,288 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 01:38:27,339 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 01:39:00,892 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:39:00] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 01:39:01,151 - phishing_detector - INFO - Analysis [ff49fbe0] started for URL: https://github.com/copilot/c/f7e9528d-8206-4c2e-bd4f-e61ce3fd88bd
+2025-07-16 01:39:01,151 - phishing_detector - INFO - Analysis [ff49fbe0] completed: LEGITIMATE (Verified Domain)
+2025-07-16 01:39:01,151 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 01:39:01] "POST /predict HTTP/1.1" 200 -
+2025-07-16 01:39:17,842 - werkzeug - INFO -  * Detected change in 'C:\\Users\\user\\Desktop\\ML\\phishguard-react\\app.py', reloading
+2025-07-16 01:39:17,842 - werkzeug - INFO -  * Detected change in 'C:\\Users\\user\\Desktop\\ML\\phishguard-react\\app.py', reloading
+2025-07-16 01:39:19,086 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 01:39:23,034 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 01:39:23,072 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 01:39:23,093 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 01:39:46,831 - werkzeug - INFO -  * Detected change in 'C:\\Program Files\\Python311\\Lib\\os.py', reloading
+2025-07-16 01:39:48,114 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)

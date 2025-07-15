@@ -37,9 +37,12 @@ logger = logging.getLogger('phishing_detector')
 
 # ===================== MODEL LOADING =====================
 try:
-    MODEL_PATH = os.environ.get('MODEL_PATH', './phishing_model_xgboost.pkl')
+    MODEL_PATH = os.environ.get('MODEL_PATH', 'C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl')
     model = joblib.load(MODEL_PATH)
     logger.info(f"Model loaded successfully from {MODEL_PATH}")
+    # Log the expected number of features for debugging
+    if hasattr(model, 'n_features_in_'):
+        logger.info(f"Model expects {model.n_features_in_} features")
 except Exception as e:
     logger.error(f"Failed to load model: {e}")
     model = None
@@ -77,15 +80,7 @@ REPUTABLE_DOMAINS = {
     'notion.so', 'figma.com', 'airtable.com', 'zendesk.com', 'atlassian.com',
     
     # Add education and government domains generically
-    'edu', 'gov', 'mil', 'ac.uk', 'gov.uk', 'edu.au', 'gov.au',
-    
-    # Development and educational platforms - ADDED
-    'replit.com', 'codepen.io', 'codesandbox.io', 'glitch.me', 'glitch.com',
-    'herokuapp.com', 'vercel.app', 'netlify.app', 'pages.dev', 'render.com',
-    'surge.sh', 'github.io', 'gitlab.io', 'pythonanywhere.com', 'azurewebsites.net',
-    'firebase.app', 'web.app', 'onrender.com', 'appspot.com', 'workers.dev',
-    'gitpod.io', 'stackblitz.com', 'fly.dev', 'deno.dev', 'railway.app',
-    'cyclic.app', 'itch.io', 'sourceforge.net', 'codeberg.org', 'kaggle.com'
+    'edu', 'gov', 'mil', 'ac.uk', 'gov.uk', 'edu.au', 'gov.au'
 }
 
 # Security and cybersecurity websites
@@ -99,26 +94,12 @@ SECURITY_WEBSITES = {
     'kali.org', 'metasploit.com', 'wireshark.org', 'snort.org', 'hackthebox.eu',
     'tryhackme.com', 'threatpost.com', 'bleepingcomputer.com', 'krebsonsecurity.com',
     'securityweek.com', 'darkreading.com', 'schneier.com', 'hackread.com',
-    'thehackernews.com', 'cyberscoop.com', 'cybersecurityventures.com'
+    'thehackernews.com', 'cyberscoop.com', 'cybersecurityventures.com',
+    'replit.com'  # Added replit.com to prevent false positives on the app itself
 }
 
 # Add security websites to reputable domains
 REPUTABLE_DOMAINS.update(SECURITY_WEBSITES)
-
-# Development and Educational Platforms - ADDED
-DEVELOPER_PLATFORMS = {
-    'github.com', 'gitlab.com', 'bitbucket.org', 'replit.com', 'codepen.io',
-    'codesandbox.io', 'glitch.me', 'glitch.com', 'herokuapp.com', 'vercel.app',
-    'netlify.app', 'pages.dev', 'render.com', 'surge.sh', 'github.io',
-    'gitlab.io', 'pythonanywhere.com', 'azurewebsites.net', 'firebase.app',
-    'web.app', 'onrender.com', 'appspot.com', 'workers.dev', 'gitpod.io',
-    'stackblitz.com', 'fly.dev', 'deno.dev', 'railway.app', 'cyclic.app',
-    'itch.io', 'sourceforge.net', 'codeberg.org', 'kaggle.com', 'jsfiddle.net',
-    'csb.app', 'replicate.app'
-}
-
-# Add developer platforms to reputable domains
-REPUTABLE_DOMAINS.update(DEVELOPER_PLATFORMS)
 
 # ===================== UTILITY FUNCTIONS =====================
 def sanitize_url(url):
@@ -261,12 +242,6 @@ def is_legitimate_domain(url):
         for reputable in REPUTABLE_DOMAINS:
             if registered_domain.endswith(f".{reputable}"):
                 return True
-                
-        # NEW: Check for user subdomains on developer platforms like replit.com
-        for dev_platform in DEVELOPER_PLATFORMS:
-            # Check for patterns like username.replit.app or project-name.netlify.app
-            if domain.endswith(f".{dev_platform}") or registered_domain.endswith(f".{dev_platform}"):
-                return True
         
         return False
     except Exception as e:
@@ -293,46 +268,6 @@ def is_security_website(url):
     # Lower the risk for domains with security-related terms when they're legitimate looking
     for keyword in security_keywords:
         if keyword in registered_domain and not has_suspicious_pattern(url):
-            return True
-    
-    return False
-
-# NEW: Check if URL is likely a development/educational platform
-@lru_cache(maxsize=1024)
-def is_developer_platform(url):
-    """Check if the URL belongs to a development or educational platform"""
-    parsed = urlparse(url)
-    domain = parsed.netloc.lower()
-    
-    # Extract base domain
-    subdomain, registered_domain = extract_domain_parts(url)
-    
-    # Direct match in developer platforms
-    if registered_domain in DEVELOPER_PLATFORMS:
-        return True
-        
-    # Check for subdomains of developer platforms
-    for dev_platform in DEVELOPER_PLATFORMS:
-        if domain.endswith(f".{dev_platform}") or registered_domain.endswith(f".{dev_platform}"):
-            return True
-            
-    # Check for common development platform patterns
-    dev_patterns = [
-        r'\.github\.io$', 
-        r'\.netlify\.app$', 
-        r'\.vercel\.app$',
-        r'\.replit\.app$',
-        r'\.repl\.co$',
-        r'\.pages\.dev$',
-        r'\.herokuapp\.com$',
-        r'\.glitch\.me$',
-        r'-[a-z0-9]{4,12}\.app\.github\.dev$',  # GitHub Codespaces pattern
-        r'[a-z0-9\-]+\.gitpod\.io$',            # Gitpod pattern
-        r'[a-z0-9\-]+\.stackblitz\.io$'         # StackBlitz pattern
-    ]
-    
-    for pattern in dev_patterns:
-        if re.search(pattern, domain):
             return True
     
     return False
@@ -437,12 +372,8 @@ def extract_url_features(url):
     # Reduce risk for known security websites
     if is_security_website(url):
         total_risk_count = max(0, total_risk_count - 2)
-        
-    # NEW: Reduce risk for development platforms
-    if is_developer_platform(url):
-        total_risk_count = max(0, total_risk_count - 2)
     
-    # Create a dictionary with the 12 specific features in the expected order
+    # Create a dictionary with ONLY the 12 specific features in the expected order
     features = {
         'url_entropy': url_entropy,
         'domain_entropy': domain_entropy,
@@ -557,32 +488,6 @@ def analyze_url(url):
         
         logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Security Website)")
         return result
-        
-    # STEP 1.7: NEW - Check if it's a developer or educational platform
-    if is_developer_platform(url):
-        result.update({
-            'is_phishing': False,
-            'confidence': 0.05,  # Very low phishing probability
-            'risk_level': 'Low',
-            'analysis_method': 'Developer Platform Recognition',
-            'details': {
-                **result.get('details', {}),
-                'verification': {
-                    'method': 'Developer Platform Recognition',
-                    'matched': True,
-                    'notes': 'URL belongs to a known developer or educational platform.'
-                }
-            }
-        })
-        
-        # Record processing time
-        result['processing_time'] = time.time() - start_time
-        
-        # Cache the result
-        cache_result(url, result)
-        
-        logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Developer Platform)")
-        return result
     
     # STEP 2: For other domains, use the ML model with enhanced feature extraction
     try:
@@ -592,7 +497,7 @@ def analyze_url(url):
         # Store extracted features in result
         result['details']['extracted_features'] = features
         
-        # Convert to DataFrame with feature order matching training data
+        # Define the expected feature names in the correct order
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
@@ -600,7 +505,13 @@ def analyze_url(url):
             'path_depth', 'has_url_encoding'
         ]
         
+        # Create dataframe with ONLY the expected features in the correct order
         df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
+        # Ensure only the expected columns are included in the exact order needed
+        df = df[feature_names]
+        
+        # Log feature shape for debugging
+        logger.debug(f"Feature dataframe shape: {df.shape}, columns: {list(df.columns)}")
         
         # STEP 3: Get raw prediction
         prediction = model.predict(df)[0]
@@ -638,17 +549,6 @@ def analyze_url(url):
         if any(keyword in registered_domain for keyword in security_keywords):
             calibrated_confidence *= 0.7
             calibration_factors.append(('security_keyword', 0.7))
-            
-        # NEW: Special calibration for development platforms and educational resources
-        dev_keywords = ['repl', 'code', 'dev', 'sandbox', 'editor', 'ide', 'project', 'demo', 'tutorial', 'course']
-        if any(keyword in registered_domain or keyword in parsed.path for keyword in dev_keywords):
-            calibrated_confidence *= 0.6  # More aggressive reduction for development keywords
-            calibration_factors.append(('dev_keyword', 0.6))
-            
-        # NEW: Special treatment for Replit and similar platform links
-        if 'replit.com' in url or 'repl.co' in url or re.search(r'\.repl\.', url):
-            calibrated_confidence *= 0.3  # Significant reduction for Replit specifically
-            calibration_factors.append(('replit_domain', 0.3))
             
         # Recalculate binary prediction based on adjusted probability
         calibrated_prediction = int(calibrated_confidence > 0.5)
@@ -849,11 +749,11 @@ def internal_server_error(e):
 
 # ===================== APPLICATION STARTUP =====================
 if __name__ == '__main__':
+    # Check if model is loaded correctly
     if model is None:
         logger.critical("Cannot start application - model failed to load")
         print("ERROR: Model failed to load. Check the logs for details.")
         exit(1)
     
-    # Cloud Run will set PORT environment variable
-    port = int(os.environ.get('PORT', 8080))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    # Development server configuration
+    app.run(debug=True, host='0.0.0.0', port=5000)
