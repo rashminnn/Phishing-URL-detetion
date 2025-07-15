@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Update this to your Firebase Functions URL
 // The environment variable approach is good for different environments
-const API_URL = process.env.REACT_APP_API_URL || 'https://us-central1-idptest-b4e6d.cloudfunctions.net/api';
+const API_URL = process.env.REACT_APP_API_URL || 'https://phishguard.up.railway.app';
 console.log('Using API URL:', API_URL);
 
 // Create an axios instance
