@@ -21,16 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV PRODUCTION=True
 ENV SECRET_KEY=ba04e2f1-06c4-41f5-9bc1-be2b665c7d23
 
-# Create a startup script that properly handles the PORT variable
-RUN echo '#!/bin/bash\n\
-PORT="${PORT:-8080}"\n\
-echo "Starting PhishGuard on port $PORT"\n\
-exec gunicorn app:app --bind 0.0.0.0:$PORT' > /app/start.sh && \
-chmod +x /app/start.sh
-
 # Create a non-root user and switch to it
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Use the startup script
-CMD ["/app/start.sh"]
+# Hardcoded port - Railway will handle port mapping externally
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080"]
