@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, render_template, jsonify, session
 from urllib.parse import urlparse, unquote
 import re
 import os
@@ -11,15 +11,15 @@ import hashlib
 from datetime import datetime, timedelta
 from functools import lru_cache
 import uuid
-from flask_cors import CORS
+from flask_cors import CORS  # Added import for CORS
 
 # ===================== APPLICATION SETUP =====================
-app = Flask(__name__, static_folder='build', static_url_path='/')
-CORS(app)  # Enable CORS for all routes
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes to work with React frontend
 
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
-# Set to True in production with HTTPS
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('PRODUCTION', 'False').lower() == 'true'
+# Modified for development - change back to True in production
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024  # 2KB max request size
@@ -37,33 +37,11 @@ logger = logging.getLogger('phishing_detector')
 
 # ===================== MODEL LOADING =====================
 try:
-    MODEL_PATH = os.environ.get('MODEL_PATH', './phishing_model_xgboost.pkl')
-    
-    # Check if file exists
-    if not os.path.exists(MODEL_PATH):
-        logger.error(f"Model file not found at {MODEL_PATH}")
-        # Try alternative paths
-        alternative_paths = [
-            'phishing_model_xgboost.pkl',
-            '/app/phishing_model_xgboost.pkl',
-            './app/phishing_model_xgboost.pkl'
-        ]
-        for alt_path in alternative_paths:
-            if os.path.exists(alt_path):
-                MODEL_PATH = alt_path
-                logger.info(f"Found model at alternative path: {MODEL_PATH}")
-                break
-    
+    MODEL_PATH = os.environ.get('MODEL_PATH', 'C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl')
     model = joblib.load(MODEL_PATH)
     logger.info(f"Model loaded successfully from {MODEL_PATH}")
-    
-    if hasattr(model, 'n_features_in_'):
-        logger.info(f"Model expects {model.n_features_in_} features")
-        
 except Exception as e:
     logger.error(f"Failed to load model: {e}")
-    logger.error(f"Current working directory: {os.getcwd()}")
-    logger.error(f"Files in current directory: {os.listdir('.')}")
     model = None
 
 # ===================== RESULT CACHING =====================
@@ -113,8 +91,7 @@ SECURITY_WEBSITES = {
     'kali.org', 'metasploit.com', 'wireshark.org', 'snort.org', 'hackthebox.eu',
     'tryhackme.com', 'threatpost.com', 'bleepingcomputer.com', 'krebsonsecurity.com',
     'securityweek.com', 'darkreading.com', 'schneier.com', 'hackread.com',
-    'thehackernews.com', 'cyberscoop.com', 'cybersecurityventures.com',
-    'replit.com'  # Added replit.com to prevent false positives on the app itself
+    'thehackernews.com', 'cyberscoop.com', 'cybersecurityventures.com'
 }
 
 # Add security websites to reputable domains
@@ -392,7 +369,7 @@ def extract_url_features(url):
     if is_security_website(url):
         total_risk_count = max(0, total_risk_count - 2)
     
-    # Create a dictionary with ONLY the 12 specific features in the expected order
+    # Create a dictionary with the 12 specific features in the expected order
     features = {
         'url_entropy': url_entropy,
         'domain_entropy': domain_entropy,
@@ -516,7 +493,7 @@ def analyze_url(url):
         # Store extracted features in result
         result['details']['extracted_features'] = features
         
-        # Define the expected feature names in the correct order
+        # Convert to DataFrame with feature order matching training data
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
@@ -524,13 +501,7 @@ def analyze_url(url):
             'path_depth', 'has_url_encoding'
         ]
         
-        # Create dataframe with ONLY the expected features in the correct order
         df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
-        # Ensure only the expected columns are included in the exact order needed
-        df = df[feature_names]
-        
-        # Log feature shape for debugging
-        logger.debug(f"Feature dataframe shape: {df.shape}, columns: {list(df.columns)}")
         
         # STEP 3: Get raw prediction
         prediction = model.predict(df)[0]
@@ -612,27 +583,9 @@ def analyze_url(url):
     
     return result
 
-# ===================== API ROUTES (Move these first) =====================
-@app.route('/api')
-def api_root():
-    """API root endpoint"""
-    if 'session_id' not in session:
-        session['session_id'] = str(uuid.uuid4())
-        session['history'] = []
-    
-    return jsonify({
-        'status': 'success',
-        'message': 'PhishGuard API is running',
-        'endpoints': {
-            'test': '/api/test',
-            'predict': '/api/predict',
-            'feedback': '/api/feedback',
-            'check': '/api/check',
-            'history': '/api/history'
-        }
-    })
-
-@app.route('/api/test', methods=['GET'])
+# ===================== FLASK ROUTES =====================
+# Added test endpoint for React connectivity testing
+@app.route('/test', methods=['GET'])
 def test_api():
     """Simple endpoint to test if the API is working"""
     return jsonify({
@@ -641,7 +594,17 @@ def test_api():
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/api/predict', methods=['POST'])
+@app.route('/')
+def home():
+    """Render the home page"""
+    # Generate a unique session ID if not present
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+        session['history'] = []
+    
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
 def predict():
     """Process a URL and return phishing analysis results"""
     if request.method == 'POST':
@@ -671,17 +634,22 @@ def predict():
             # Perform the analysis
             result = analyze_url(url)
             
-            # Add analysis ID to session for potential feedback
-            session['last_analysis_id'] = result['analysis_id']
-            
-            # Return JSON result
-            return jsonify(result)
+            # Return result based on request type
+            if request.is_json:
+                return jsonify(result)
+            else:
+                # Add analysis ID to session for potential feedback
+                session['last_analysis_id'] = result['analysis_id']
+                return render_template('result.html', result=result)
                 
         except Exception as e:
             logger.error(f"Request error: {str(e)}")
-            return jsonify({'error': 'An unexpected error occurred while processing your request'}), 500
+            if request.is_json:
+                return jsonify({'error': 'An unexpected error occurred while processing your request'}), 500
+            else:
+                return render_template('error.html', error='An unexpected error occurred while processing your request')
 
-@app.route('/api/feedback', methods=['POST'])
+@app.route('/feedback', methods=['POST'])
 def feedback():
     """Handle user feedback for false positives or false negatives"""
     if not request.is_json:
@@ -749,44 +717,22 @@ def api_check():
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during URL analysis'}), 500
 
-@app.route('/api/history')
+@app.route('/history')
 def history():
-    """Return user's URL checking history as JSON"""
+    """Display the user's URL checking history"""
     history = session.get('history', [])
-    return jsonify(history)
+    return render_template('history.html', history=history)
 
 @app.errorhandler(404)
 def page_not_found(e):
     """Handle 404 errors"""
-    return jsonify({'error': 'Not found', 'message': 'The requested URL was not found on the server'}), 404
+    return render_template('error.html', error='Page not found'), 404
 
 @app.errorhandler(500)
 def internal_server_error(e):
     """Handle internal server errors"""
-    return jsonify({'error': 'Internal server error', 'message': 'An unexpected error occurred'}), 500
-
-# Add this route for Railway health checks
-@app.route('/health')
-def health_check():
-    """Health check for Railway"""
-    return jsonify({
-        'status': 'healthy',
-        'model_loaded': model is not None,
-        'timestamp': datetime.now().isoformat()
-    }), 200
-
-# ===================== FRONTEND SERVING (Put this LAST) =====================
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    """Serve the frontend React app - MUST BE LAST ROUTE"""
-    # Only serve frontend for non-API routes
-    if path.startswith('api/'):
-        return jsonify({'error': 'API endpoint not found'}), 404
-        
-    if path != "" and os.path.exists(app.static_folder + '/' + path):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
+    return render_template('error.html', 
+                          error='An internal server error occurred. Our team has been notified.'), 500
 
 # ===================== APPLICATION STARTUP =====================
 if __name__ == '__main__':
@@ -796,6 +742,5 @@ if __name__ == '__main__':
         print("ERROR: Model failed to load. Check the logs for details.")
         exit(1)
     
-    # Use PORT environment variable for Railway deployment
-    port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    # Development server configuration
+    app.run(debug=True, host='0.0.0.0', port=5000)
