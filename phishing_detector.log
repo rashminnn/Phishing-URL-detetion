@@ -208,3 +208,54 @@
 2025-07-16 03:40:15,048 - phishing_detector - INFO - Analysis [0e63d16c] started for URL: https://diminuicaotaxas.app/home-pag.php
 2025-07-16 03:40:15,067 - phishing_detector - INFO - Analysis [0e63d16c] completed in 0.018s: PHISHING (confidence: 0.80)
 2025-07-16 03:40:15,068 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 03:40:15] "POST /predict HTTP/1.1" 200 -
+2025-07-16 03:55:37,515 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 04:02:02,469 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 04:03:28,084 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 04:05:55,136 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:05:55,136 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 04:06:52,541 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:06:52,542 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 04:06:53,428 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 04:06:53,428 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 04:08:37,996 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:08:37] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:08:38,263 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:08:38] "[31m[1mPOST /predict HTTP/1.1[0m" 405 -
+2025-07-16 04:08:39,903 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:08:39] "[31m[1mPOST /predict HTTP/1.1[0m" 405 -
+2025-07-16 04:10:57,761 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:10:57] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:10:58,012 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:10:58] "[31m[1mPOST /predict HTTP/1.1[0m" 405 -
+2025-07-16 04:11:09,427 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:11:09] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:11:09,745 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:11:09] "[31m[1mPOST /predict HTTP/1.1[0m" 405 -
+2025-07-16 04:11:22,294 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:11:22,295 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 04:11:23,164 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 04:11:23,164 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 04:11:36,562 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:11:36] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:11:36,826 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:11:36] "[31m[1mPOST /predict HTTP/1.1[0m" 405 -
+2025-07-16 04:13:10,835 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:13:10,837 - phishing_detector - INFO - Model expects 12 features
+2025-07-16 04:13:11,720 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 04:13:11,721 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 04:13:23,348 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:13:23] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:13:23,613 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:13:23] "[31m[1mPOST /predict HTTP/1.1[0m" 405 -
+2025-07-16 04:13:52,232 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 04:13:53,124 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 04:13:53,124 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 04:13:53,162 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 04:13:55,366 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:13:55,401 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 04:13:55,448 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 04:13:59,668 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:13:59] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:13:59,933 - phishing_detector - INFO - Analysis [cbc5e819] started for URL: https://www.google.com/search?q=which+port+range+can+we+use&sca_esv=cd63d47fa156149d&sxsrf=ae3tifpmmncscco80tehomzt8wxd3jzhfq:1752612970023&ei=asb2ao-xadyz4-ep64qs2a8&ved=0ahukewjv9iam4l-oaxxc2tgghwufbpsq4dudcba&uact=5&oq=which+port+range+can+we+use&gs_lp=egxnd3mtd2l6lxnlcnaig3doawnoihbvcnqgcmfuz2ugy2fuihdlihvzztiieceyoaeywwqycbahgkabgmmeskenuloewj4lcaf4azabajgbgwggabegqgedmc43uaedyaea-aebmaifoalya8icchaagladgnyegefcaggqabghgagyhsiccxaagiaegiydgiofwgiieaayogqyiqxcaggqabiabbiibmicchahgkabgmmegaqyawcibggqbgisbwmxljsgb-8bsgcdmc40uafna8ihbzaumy4xljhibxm&sclient=gws-wiz-serp
+2025-07-16 04:13:59,933 - phishing_detector - INFO - Analysis [cbc5e819] completed: LEGITIMATE (Verified Domain)
+2025-07-16 04:13:59,933 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:13:59] "POST /predict HTTP/1.1" 200 -
