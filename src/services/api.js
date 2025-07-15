@@ -1,8 +1,7 @@
 import axios from 'axios';
 
-// Update this to your Firebase Functions URL
-// The environment variable approach is good for different environments
-const API_URL = process.env.REACT_APP_API_URL || 'https://us-central1-idptest-b4e6d.cloudfunctions.net/api';
+// Updated for Railway deployment - use relative path for same-domain API
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 console.log('Using API URL:', API_URL);
 
 // Create an axios instance
@@ -11,7 +10,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false, // This is fine for Firebase Functions
+  withCredentials: false, // This is fine for Railway deployment
 });
 
 // Your existing functions remain the same
