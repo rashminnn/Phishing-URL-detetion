@@ -259,3 +259,17 @@
 2025-07-16 04:13:59,933 - phishing_detector - INFO - Analysis [cbc5e819] started for URL: https://www.google.com/search?q=which+port+range+can+we+use&sca_esv=cd63d47fa156149d&sxsrf=ae3tifpmmncscco80tehomzt8wxd3jzhfq:1752612970023&ei=asb2ao-xadyz4-ep64qs2a8&ved=0ahukewjv9iam4l-oaxxc2tgghwufbpsq4dudcba&uact=5&oq=which+port+range+can+we+use&gs_lp=egxnd3mtd2l6lxnlcnaig3doawnoihbvcnqgcmfuz2ugy2fuihdlihvzztiieceyoaeywwqycbahgkabgmmeskenuloewj4lcaf4azabajgbgwggabegqgedmc43uaedyaea-aebmaifoalya8icchaagladgnyegefcaggqabghgagyhsiccxaagiaegiydgiofwgiieaayogqyiqxcaggqabiabbiibmicchahgkabgmmegaqyawcibggqbgisbwmxljsgb-8bsgcdmc40uafna8ihbzaumy4xljhibxm&sclient=gws-wiz-serp
 2025-07-16 04:13:59,933 - phishing_detector - INFO - Analysis [cbc5e819] completed: LEGITIMATE (Verified Domain)
 2025-07-16 04:13:59,933 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:13:59] "POST /predict HTTP/1.1" 200 -
+2025-07-16 04:30:44,056 - phishing_detector - INFO - Model loaded successfully from C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl
+2025-07-16 04:30:44,968 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.220.42:5000
+2025-07-16 04:30:44,968 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 04:30:44,984 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 04:30:49,979 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 04:30:50,023 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 04:30:50,050 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 04:30:53,055 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:30:53] "OPTIONS /predict HTTP/1.1" 200 -
+2025-07-16 04:30:53,321 - phishing_detector - INFO - Analysis [d738bcb0] started for URL: https://claude.ai/chat/958520c3-e58b-4824-9060-5335826b7759
+2025-07-16 04:30:53,321 - phishing_detector - INFO - Analysis [d738bcb0] completed: LEGITIMATE (Verified Domain)
+2025-07-16 04:30:53,321 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 04:30:53] "POST /predict HTTP/1.1" 200 -
