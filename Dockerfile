@@ -26,5 +26,5 @@ ENV SECRET_KEY=ba04e2f1-06c4-41f5-9bc1-be2b665c7d23
 RUN useradd -m appuser
 USER appuser
 
-# Run the application with Gunicorn
-CMD gunicorn app:app --bind 0.0.0.0:$PORT
+# Fixed command - use the PORT environment variable directly instead of shell expansion
+CMD gunicorn app:app --bind 0.0.0.0:${PORT:-5000}
