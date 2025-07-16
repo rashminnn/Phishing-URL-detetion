@@ -400,11 +400,7 @@ def analyze_url(url):
                f"(confidence: {result['confidence']:.2f})")
     return result
 
-@app.route('/')
-def home():
-    return jsonify({'message': 'PhishGuard API is running.'})
-
-@app.route('/test', methods=['GET'])
+@app.route('/api/test', methods=['GET'])
 def test_api():
     return jsonify({
         'status': 'success',
@@ -470,6 +466,16 @@ def api_check():
     except Exception as e:
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during URL analysis'}), 500
+
+# -------- Serve React Frontend Build --------
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react_app(path):
+    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    if path != "" and os.path.exists(os.path.join(build_dir, path)):
+        return send_from_directory(build_dir, path)
+    else:
+        return send_from_directory(build_dir, 'index.html')
 
 @app.errorhandler(404)
 def page_not_found(e):
