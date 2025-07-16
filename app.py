@@ -50,19 +50,16 @@ def load_model():
     MODEL_PATH = os.environ.get('MODEL_PATH', os.path.join(BASE_DIR, 'phishing_model_xgboost.pkl'))
     
     try:
-        # Log memory before loading
         process = psutil.Process(os.getpid())
         memory_before = process.memory_info().rss / 1024 / 1024  # MB
         logger.info(f"Memory before model loading: {memory_before:.2f} MB")
         
         model = joblib.load(MODEL_PATH)
         
-        # Log memory after loading
         memory_after = process.memory_info().rss / 1024 / 1024  # MB
         logger.info(f"Memory after model loading: {memory_after:.2f} MB")
         logger.info(f"Model loaded successfully from {MODEL_PATH}")
         
-        # Force garbage collection
         gc.collect()
         
         return model
@@ -76,14 +73,14 @@ model = load_model()
 # ---- Cache Configuration ----
 URL_CACHE = {}
 CACHE_TTL = 3600
-MAX_CACHE_SIZE = 100  # Reduced cache size to save memory
+MAX_CACHE_SIZE = 100
 
-# ---- Allowlist (reduced to save memory) ----
+# ---- Allowlist ----
 REPUTABLE_DOMAINS = {
     'google.com', 'youtube.com', 'gmail.com', 'apple.com', 'microsoft.com',
     'amazon.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'github.com',
     'paypal.com', 'netflix.com', 'spotify.com', 'yahoo.com', 'reddit.com',
-    'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai'
+    'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai', 'grok.com'  # Added grok.com
 }
 
 # ---- Precompiled Regex Patterns ----
@@ -113,23 +110,32 @@ SUSPICIOUS_TITLE_PATTERN = re.compile(
 )
 
 async def fetch_website_content(url):
-    """Fetch website HTML content with memory optimization"""
+    """Fetch website HTML content with retry logic and memory optimization"""
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
+    ]
     timeout = aiohttp.ClientTimeout(total=10)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url, allow_redirects=True) as response:
-                if response.status == 200:
-                    # Limit content size to prevent memory issues
-                    content = await response.text()
-                    content = content[:5000]  # Reduced from 10KB to 5KB
-                    logger.info(f"Successfully fetched content for {url} ({len(content)} bytes)")
-                    return content
-                else:
-                    logger.warning(f"Failed to fetch {url}: Status {response.status}")
-                    return None
-    except Exception as e:
-        logger.error(f"Error fetching content for {url}: {str(e)}")
-        return None
+    for attempt, user_agent in enumerate(user_agents, 1):
+        headers = {'User-Agent': user_agent}
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, allow_redirects=True, headers=headers) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        content = content[:5000]  # 5KB limit
+                        logger.info(f"Successfully fetched content for {url} ({len(content)} bytes) on attempt {attempt}")
+                        return content
+                    else:
+                        logger.warning(f"Attempt {attempt} failed for {url}: Status {response.status}, Headers: {response.headers}")
+        except Exception as e:
+            logger.error(f"Attempt {attempt} error fetching content for {url}: {str(e)}")
+        if attempt < len(user_agents):
+            logger.info(f"Retrying {url} with different User-Agent")
+            await asyncio.sleep(1)
+    logger.error(f"All attempts to fetch {url} failed")
+    return None
 
 def extract_content_features(html_content):
     """Extract features from HTML content with memory optimization"""
@@ -143,11 +149,9 @@ def extract_content_features(html_content):
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
         
-        # Extract title
         title = soup.title.string if soup.title else ""
         has_suspicious_title = int(bool(SUSPICIOUS_TITLE_PATTERN.search(title)))
         
-        # Check for login forms
         forms = soup.find_all('form')
         has_login_form = int(any(
             input_tag.get('type') in ['password', 'email'] or
@@ -156,11 +160,11 @@ def extract_content_features(html_content):
             for input_tag in form.find_all('input')
         ))
         
-        # Count external scripts
         scripts = soup.find_all('script', src=True)
         external_script_count = sum(1 for script in scripts if re.match(r'^https?://', script['src']))
         
-        # Clean up
+        logger.info(f"Content features extracted: title_suspicious={has_suspicious_title}, login_form={has_login_form}, scripts={external_script_count}")
+        
         soup.decompose()
         
         return {
@@ -196,7 +200,6 @@ def get_url_hash(url):
 
 def cache_result(url, result):
     if len(URL_CACHE) >= MAX_CACHE_SIZE:
-        # Remove oldest entries
         oldest_urls = sorted(URL_CACHE.items(), key=lambda x: x[1]['timestamp'])[:20]
         for url_hash, _ in oldest_urls:
             URL_CACHE.pop(url_hash, None)
@@ -214,7 +217,7 @@ def get_cached_result(url):
     URL_CACHE.pop(url_hash, None)
     return None
 
-@lru_cache(maxsize=512)  # Reduced cache size
+@lru_cache(maxsize=512)
 def extract_domain_parts(url):
     try:
         parsed = urlparse(url)
@@ -232,7 +235,7 @@ def extract_domain_parts(url):
     except Exception:
         return "", ""
 
-@lru_cache(maxsize=512)  # Reduced cache size
+@lru_cache(maxsize=512)
 def is_legitimate_domain(url):
     try:
         subdomain, registered_domain = extract_domain_parts(url)
@@ -274,7 +277,6 @@ def extract_url_features(url, parsed=None, html_content=None):
     
     path_depth = parsed.path.count('/')
     
-    # Extract content-based features
     content_features = extract_content_features(html_content)
     
     total_risk_count = (
@@ -293,7 +295,7 @@ def extract_url_features(url, parsed=None, html_content=None):
         'url_length_norm': url_length_norm,
         'subdomain_ratio': subdomain_ratio,
         'has_at_symbol': has_at_symbol,
-        'has_brand_keywords': 0,  # Simplified
+        'has_brand_keywords': 0,
         'path_depth': path_depth,
         'has_url_encoding': has_url_encoding,
         'has_uuid': has_uuid,
@@ -320,10 +322,12 @@ async def analyze_url_async(url):
 
     cached_result = get_cached_result(url)
     if cached_result:
+        logger.info(f"Cache hit for URL: {url}")
         return cached_result
 
     start_time = time.time()
     analysis_id = str(uuid.uuid4())[:8]
+    logger.info(f"Analysis [{analysis_id}] started for URL: {url}")
     
     result = {
         'url': url,
@@ -338,30 +342,49 @@ async def analyze_url_async(url):
     }
 
     try:
-        # Check if legitimate domain first
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        subdomain, registered_domain = extract_domain_parts(url)
+        result['details']['domain'] = {
+            'full': domain,
+            'registered_domain': registered_domain,
+            'subdomain': subdomain,
+            'path': parsed.path,
+            'query': parsed.query,
+            'scheme': parsed.scheme
+        }
+        
         if is_legitimate_domain(url):
             result.update({
                 'is_phishing': False,
                 'confidence': 0.05,
                 'risk_level': 'Low',
-                'analysis_method': 'Verified Domain Check'
+                'analysis_method': 'Verified Domain Check',
+                'details': {
+                    **result['details'],
+                    'verification': {
+                        'method': 'Allowlist Match',
+                        'matched': True,
+                        'notes': 'Domain is on the verified legitimate domains list.'
+                    }
+                }
             })
             result['processing_time'] = time.time() - start_time
             cache_result(url, result)
+            logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Verified Domain)")
             return result
 
-        # Fetch content and analyze
-        parsed = urlparse(url)
         html_content = await fetch_website_content(url)
         result['details']['content_fetched'] = html_content is not None
+        if not html_content:
+            result['details']['errors'].append("Failed to fetch website content")
         
         features = extract_url_features(url, parsed, html_content)
+        result['details']['extracted_features'] = features
         
-        # Ensure model is loaded
         if model is None:
             raise ValueError("Model not loaded")
         
-        # Prepare features for prediction
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
@@ -372,18 +395,47 @@ async def analyze_url_async(url):
         
         df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
         
-        prediction = model.predict(df)[0]
-        prediction_proba = model.predict_proba(df)[0][1]
+        try:
+            prediction = model.predict(df)[0]
+            prediction_proba = model.predict_proba(df)[0][1]
+            logger.info(f"Model prediction for {url}: raw_prediction={prediction}, confidence={prediction_proba:.2f}")
+        except Exception as e:
+            logger.error(f"Model prediction failed: {str(e)}")
+            raise ValueError(f"Model prediction error: {str(e)}")
+        
+        result['details']['ml_prediction'] = {
+            'raw_prediction': int(prediction),
+            'raw_confidence': float(prediction_proba)
+        }
+
+        calibrated_confidence = prediction_proba
+        calibration_factors = []
+        if features['has_uuid']:
+            calibrated_confidence *= 0.6
+            calibration_factors.append(('uuid_in_path', 0.6))
+        if features['has_https']:
+            calibrated_confidence *= 0.7
+            calibration_factors.append(('has_https', 0.7))
+        if not features['has_suspicious_title'] and not features['has_login_form']:
+            calibrated_confidence *= 0.8
+            calibration_factors.append(('no_suspicious_content', 0.8))
+        
+        calibrated_prediction = int(calibrated_confidence > 0.5)
+        result['details']['calibration'] = {
+            'factors': calibration_factors,
+            'original_confidence': float(prediction_proba),
+            'calibrated_confidence': float(calibrated_confidence)
+        }
         
         result.update({
-            'is_phishing': bool(prediction),
-            'confidence': float(prediction_proba),
-            'risk_level': 'High' if prediction_proba > 0.8 else 'Medium' if prediction_proba > 0.5 else 'Low',
+            'is_phishing': bool(calibrated_prediction),
+            'confidence': float(calibrated_confidence),
+            'risk_level': 'High' if calibrated_confidence > 0.8 else 'Medium' if calibrated_confidence > 0.5 else 'Low',
             'analysis_method': 'Machine Learning Analysis'
         })
         
     except Exception as e:
-        logger.error(f"Analysis failed: {str(e)}")
+        logger.error(f"Analysis [{analysis_id}] failed: {str(e)}")
         result['details']['errors'].append(f"Analysis error: {str(e)}")
         result.update({
             'is_phishing': True,
@@ -394,8 +446,10 @@ async def analyze_url_async(url):
 
     result['processing_time'] = time.time() - start_time
     cache_result(url, result)
+    logger.info(f"Analysis [{analysis_id}] completed in {result['processing_time']:.3f}s: "
+                f"{'PHISHING' if result['is_phishing'] else 'LEGITIMATE'} "
+                f"(confidence: {result['confidence']:.2f})")
     
-    # Force garbage collection after analysis
     gc.collect()
     
     return result
@@ -419,7 +473,6 @@ def predict():
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
         
-        # Run async function in event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -445,7 +498,7 @@ def feedback():
             return jsonify({'error': 'Missing required feedback data'}), 400
         if feedback_type not in ['false_positive', 'false_negative']:
             return jsonify({'error': 'Invalid feedback type'}), 400
-        logger.info(f"Feedback: {feedback_type} for {analysis_id}")
+        logger.info(f"Feedback: {feedback_type} for {analysis_id} - URL: {url}")
         return jsonify({'success': True, 'message': 'Thank you for your feedback!'})
     except Exception as e:
         logger.error(f"Feedback error: {str(e)}")
@@ -462,7 +515,6 @@ def api_check():
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
         
-        # Run async function in event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
