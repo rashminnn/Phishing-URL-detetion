@@ -13,7 +13,7 @@ from functools import lru_cache
 import uuid
 from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='build', static_url_path='')
 CORS(app)
 
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
@@ -467,52 +467,23 @@ def api_check():
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during URL analysis'}), 500
 
-# -------- Serve React Static Files --------
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    static_dir = os.path.join(build_dir, 'static')
-    try:
-        logger.info(f"Serving static file: {os.path.join(static_dir, filename)}")
-        return send_from_directory(static_dir, filename)
-    except FileNotFoundError:
-        logger.error(f"Static file not found: {os.path.join(static_dir, filename)}")
-        return jsonify({'error': 'Static file not found'}), 404
-
 # -------- Serve React Frontend Build --------
-@app.route('/logo192.png')
-def serve_logo192():
-    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    logger.info(f"Serving logo192.png from: {os.path.join(build_dir, 'logo192.png')}")
-    return send_from_directory(build_dir, 'logo192.png')
-
-@app.route('/manifest.json')
-def serve_manifest():
-    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    logger.info(f"Serving manifest.json from: {os.path.join(build_dir, 'manifest.json')}")
-    return send_from_directory(build_dir, 'manifest.json')
-
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
-    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    if not path.startswith('api/'):  # Avoid serving API routes as static
-        if os.path.exists(os.path.join(build_dir, 'index.html')):
-            logger.info(f"Serving index.html from: {os.path.join(build_dir, 'index.html')}")
-            return send_from_directory(build_dir, 'index.html')
-        logger.error(f"index.html not found at: {os.path.join(build_dir, 'index.html')}")
-        return jsonify({'error': 'Index file not found'}), 404
+    if path != '' and not path.startswith('api/'):
+        logger.info(f"Serving static file or fallback: /{path}")
+        return send_from_directory(app.static_folder, path)
+    if not path.startswith('api/'):
+        logger.info(f"Serving index.html from: {os.path.join(app.static_folder, 'index.html')}")
+        return send_from_directory(app.static_folder, 'index.html')
     return jsonify({'error': 'API route not found'}), 404
 
 @app.errorhandler(404)
 def page_not_found(e):
-    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    if not request.path.startswith('/api/'):  # Serve index.html for non-API 404s
-        if os.path.exists(os.path.join(build_dir, 'index.html')):
-            logger.info(f"404: Serving index.html from {os.path.join(build_dir, 'index.html')}")
-            return send_from_directory(build_dir, 'index.html')
-        logger.error(f"404 Error: index.html not found at {os.path.join(build_dir, 'index.html')}")
-        return jsonify({'error': 'Page not found'}), 404
+    if not request.path.startswith('/api/'):
+        logger.info(f"404: Serving index.html from {os.path.join(app.static_folder, 'index.html')}")
+        return send_from_directory(app.static_folder, 'index.html')
     return jsonify({'error': 'API endpoint not found'}), 404
 
 @app.errorhandler(500)
