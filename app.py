@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from urllib.parse import urlparse, unquote
 import re
 import os
@@ -32,8 +32,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger('phishing_detector')
 
+# ---- MODEL PATH (use relative path for portability) ----
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.environ.get('MODEL_PATH', os.path.join(BASE_DIR, 'phishing_model_xgboost.pkl'))
+
 try:
-    MODEL_PATH = os.environ.get('MODEL_PATH', 'C:/Users/user/Desktop/ML/phishing test/phishing_model_xgboost.pkl')
     model = joblib.load(MODEL_PATH)
     logger.info(f"Model loaded successfully from {MODEL_PATH}")
 except Exception as e:
