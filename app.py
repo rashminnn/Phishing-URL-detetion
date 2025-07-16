@@ -472,30 +472,38 @@ def api_check():
 def serve_static(filename):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
     static_dir = os.path.join(build_dir, 'static')
+    logger.info(f"Serving static file: {os.path.join(static_dir, filename)}")
     return send_from_directory(static_dir, filename)
 
 # -------- Serve React Frontend Build --------
 @app.route('/logo192.png')
 def serve_logo192():
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    logger.info(f"Serving logo192.png from: {os.path.join(build_dir, 'logo192.png')}")
     return send_from_directory(build_dir, 'logo192.png')
 
 @app.route('/manifest.json')
 def serve_manifest():
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    logger.info(f"Serving manifest.json from: {os.path.join(build_dir, 'manifest.json')}")
     return send_from_directory(build_dir, 'manifest.json')
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    if os.path.exists(os.path.join(build_dir, path)) and path != 'index.html':
+    target = os.path.join(build_dir, path)
+    if os.path.exists(target) and path != 'index.html':
+        logger.info(f"Serving file: {target}")
         return send_from_directory(build_dir, path)
+    logger.info(f"Serving index.html from: {os.path.join(build_dir, 'index.html')}")
     return send_from_directory(build_dir, 'index.html')
 
 @app.errorhandler(404)
 def page_not_found(e):
-    return jsonify({'error': 'Page not found'}), 404
+    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    logger.error(f"404 Error: Attempting to serve index.html from {os.path.join(build_dir, 'index.html')}")
+    return send_from_directory(build_dir, 'index.html')
 
 @app.errorhandler(500)
 def internal_server_error(e):
