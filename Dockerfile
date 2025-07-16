@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . ./
-RUN npm run build
+RUN npm run build --verbose  # Add verbose output for debugging
+RUN ls -la /app/build  # Log build directory contents
 
 FROM python:3.11-slim
 WORKDIR /app
