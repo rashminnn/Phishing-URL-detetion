@@ -129,7 +129,7 @@ def extract_domain_parts(url):
     if not domain:
         return "", ""
     parts = domain.split('.')
-    special_tlds = {'co.uk', 'com.au', 'co.jp', 'co.nz', 'org.uk', 'gov.uk', 'ac.uk', 'edu.au'}
+    special_tlds = {'co.uk', 'com.au', 'co.jp', 'co.nz', 'org.uk', 'gov.uk', 'ac.uk'}
     if len(parts) >= 3 and '.'.join(parts[-2:]) in special_tlds:
         registered_domain = '.'.join(parts[-3:])
         subdomain = '.'.join(parts[:-3]) if len(parts) > 3 else ""
@@ -489,11 +489,9 @@ def serve_manifest():
 @app.route('/<path:path>')
 def serve_react_app(path):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    full_path = os.path.join(build_dir, path)
-    if path != "" and os.path.exists(full_path):
+    if os.path.exists(os.path.join(build_dir, path)) and path != 'index.html':
         return send_from_directory(build_dir, path)
-    else:
-        return send_from_directory(build_dir, 'index.html')
+    return send_from_directory(build_dir, 'index.html')
 
 @app.errorhandler(404)
 def page_not_found(e):
@@ -508,5 +506,5 @@ if __name__ == '__main__':
         logger.critical("Cannot start application - model failed to load")
         print("ERROR: Model failed to load. Check the logs for details.")
         exit(1)
-    port = int(os.environ.get('PORT', 5000))  # <- THIS LINE IS CRUCIAL
+    port = int(os.environ.get('PORT', 8080))  # Use environment variable with default 8080
     app.run(debug=True, host='0.0.0.0', port=port)
