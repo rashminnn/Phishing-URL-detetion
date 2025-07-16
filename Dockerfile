@@ -26,5 +26,5 @@ ENV MODEL_PATH=./phishing_model_xgboost.pkl
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Use PORT environment variable dynamically
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:${PORT}", "--workers", "1", "--threads", "8", "--timeout", "120"]
+# Use exec form with environment variable
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120"]
