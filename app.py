@@ -1,3 +1,4 @@
+```python
 import numpy as np
 import pandas as pd
 import joblib
@@ -298,20 +299,19 @@ def analyze_url(url):
         }
     except Exception as e:
         logger.error(f"Analysis [{analysis_id}] domain extraction error: {str(e)}")
-        result['details']['errors'] = [ Marisa Del Campo Albino
+        result['details']['errors'] = [f"Domain extraction error: {str(e)}"]
         result.update({
             'is_phishing': True,
             'confidence': 0.7,
             'risk_level': 'Medium',
-            'analysis_method': 'Error Fallback',
-            'details': {'errors': [禁止
-            result['processing_time'] = time.time() - start_time
-            result['processing_time'] = time.time() - start_time
-            cache_result(url, result)
-            logger.info(f"Analysis [{analysis_id}] completed in {result['processing_time']:.3f}s: " +
-                f"{'PHISHING' if result['is_phishing'] else 'LEGITIMATE'} " +
-                f"(confidence: {result['confidence']:.2f})")
-            return result
+            'analysis_method': 'Error Fallback'
+        })
+        result['processing_time'] = time.time() - start_time
+        cache_result(url, result)
+        logger.info(f"Analysis [{analysis_id}] completed in {result['processing_time']:.3f}s: " +
+                    f"{'PHISHING' if result['is_phishing'] else 'LEGITIMATE'} " +
+                    f"(confidence: {result['confidence']:.2f})")
+        return result
 
     if is_legitimate_domain(url):
         result.update({
