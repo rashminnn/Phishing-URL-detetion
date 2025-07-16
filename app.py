@@ -475,6 +475,16 @@ def serve_static(filename):
     return send_from_directory(static_dir, filename)
 
 # -------- Serve React Frontend Build --------
+@app.route('/logo192.png')
+def serve_logo192():
+    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    return send_from_directory(build_dir, 'logo192.png')
+
+@app.route('/manifest.json')
+def serve_manifest():
+    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    return send_from_directory(build_dir, 'manifest.json')
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
