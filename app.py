@@ -66,7 +66,7 @@ REPUTABLE_DOMAINS = {
     'stripe.com', 'square.com', 'venmo.com', 'cashapp.com',
     'wordpress.com', 'shopify.com', 'salesforce.com', 'slack.com', 'canva.com',
     'notion.so', 'figma.com', 'airtable.com', 'zendesk.com', 'atlassian.com',
-    'ycombinator.com'  # Added for bookface.ycombinator.com
+    'ycombinator.com', 'grok.com'  # Added for grok.com
 }
 SECURITY_WEBSITES = {
     'phishtank.org', 'virustotal.com', 'haveibeenpwned.com', 'malwarebytes.com',
@@ -109,23 +109,30 @@ SUSPICIOUS_TITLE_PATTERN = re.compile(
 )
 
 async def fetch_website_content(url):
-    """Fetch website HTML content using aiohttp with error handling."""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10, allow_redirects=True, headers=headers) as response:
-                if response.status == 200:
-                    content = await response.text()
-                    logger.info(f"Successfully fetched content for {url} ({len(content)} bytes)")
-                    return content[:10000]  # Limit to 10KB to avoid memory issues
-                else:
-                    logger.warning(f"Failed to fetch {url}: Status {response.status}, Headers: {response.headers}")
-                    return None
-    except Exception as e:
-        logger.error(f"Error fetching content for {url}: {str(e)}")
-        return None
+    """Fetch website HTML content using aiohttp with retry logic."""
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
+    ]
+    for attempt, user_agent in enumerate(user_agents, 1):
+        headers = {'User-Agent': user_agent}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10, allow_redirects=True, headers=headers) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        logger.info(f"Successfully fetched content for {url} ({len(content)} bytes) on attempt {attempt}")
+                        return content[:10000]  # Limit to 10KB
+                    else:
+                        logger.warning(f"Attempt {attempt} failed for {url}: Status {response.status}, Headers: {response.headers}")
+        except Exception as e:
+            logger.error(f"Attempt {attempt} error fetching content for {url}: {str(e)}")
+        if attempt < len(user_agents):
+            logger.info(f"Retrying {url} with different User-Agent")
+            await asyncio.sleep(1)
+    logger.error(f"All attempts to fetch {url} failed")
+    return None
 
 def extract_content_features(html_content):
     """Extract features from HTML content for phishing detection."""
@@ -156,6 +163,7 @@ def extract_content_features(html_content):
         scripts = soup.find_all('script', src=True)
         external_script_count = sum(1 for script in scripts if re.match(r'^https?://', script['src']))
         
+        logger.info(f"Content features extracted: title_suspicious={has_suspicious_title}, login_form={has_login_form}, scripts={external_script_count}")
         return {
             'has_suspicious_title': has_suspicious_title,
             'has_login_form': has_login_form,
@@ -366,7 +374,7 @@ async def analyze_url_async(url):
         'confidence': 0.0,
         'risk_level': 'Unknown',
         'analysis_method': 'Unknown',
-        'details': {'content_fetched': False}
+        'details': {'content_fetched': False, 'errors': []}
     }
 
     try:
@@ -383,7 +391,7 @@ async def analyze_url_async(url):
         }
     except Exception as e:
         logger.error(f"Analysis [{analysis_id}] domain extraction error: {str(e)}")
-        result['details']['errors'] = [f"Domain extraction error: {str(e)}"]
+        result['details']['errors'].append(f"Domain extraction error: {str(e)}")
         result.update({
             'is_phishing': True,
             'confidence': 0.7,
@@ -441,6 +449,8 @@ async def analyze_url_async(url):
         # Fetch website content
         html_content = await fetch_website_content(url)
         result['details']['content_fetched'] = html_content is not None
+        if not html_content:
+            result['details']['errors'].append("Failed to fetch website content")
         features = extract_url_features(url, parsed, html_content)
         result['details']['extracted_features'] = features
         feature_names = [
@@ -512,15 +522,12 @@ async def analyze_url_async(url):
         })
     except Exception as e:
         logger.error(f"Analysis [{analysis_id}] failed: {str(e)}")
+        result['details']['errors'].append(f"Analysis error: {str(e)}")
         result.update({
             'is_phishing': True,
             'confidence': 0.7,
             'risk_level': 'Medium',
-            'analysis_method': 'Error Fallback',
-            'details': {
-                **result['details'],
-                'errors': [f"Analysis error: {str(e)}"]
-            }
+            'analysis_method': 'Error Fallback'
         })
 
     result['processing_time'] = time.time() - start_time
