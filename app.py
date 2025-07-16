@@ -467,12 +467,20 @@ def api_check():
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during URL analysis'}), 500
 
+# -------- Serve React Static Files (fixes 404 for static assets) --------
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
+    static_dir = os.path.join(build_dir, 'static')
+    return send_from_directory(static_dir, filename)
+
 # -------- Serve React Frontend Build --------
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    if path != "" and os.path.exists(os.path.join(build_dir, path)):
+    full_path = os.path.join(build_dir, path)
+    if path != "" and os.path.exists(full_path):
         return send_from_directory(build_dir, path)
     else:
         return send_from_directory(build_dir, 'index.html')
