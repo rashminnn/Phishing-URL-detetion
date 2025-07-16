@@ -115,6 +115,7 @@ async def fetch_website_content(url):
             async with session.get(url, timeout=5, allow_redirects=True) as response:
                 if response.status == 200:
                     content = await response.text()
+                    logger.info(f"Successfully fetched content for {url} ({len(content)} bytes)")
                     return content[:10000]  # Limit to 10KB to avoid memory issues
                 else:
                     logger.warning(f"Failed to fetch {url}: Status {response.status}")
@@ -341,7 +342,7 @@ async def analyze_url_async(url):
             'confidence': 0.7,
             'risk_level': 'Medium',
             'analysis_method': 'Invalid URL',
-            'details': {'errors': ['Invalid or empty URL']}
+            'details': {'errors': ['Invalid or empty URL'], 'content_fetched': False}
         }
 
     cached_result = get_cached_result(url)
@@ -362,7 +363,7 @@ async def analyze_url_async(url):
         'confidence': 0.0,
         'risk_level': 'Unknown',
         'analysis_method': 'Unknown',
-        'details': {}
+        'details': {'content_fetched': False}
     }
 
     try:
@@ -436,6 +437,7 @@ async def analyze_url_async(url):
     try:
         # Fetch website content
         html_content = await fetch_website_content(url)
+        result['details']['content_fetched'] = html_content is not None
         features = extract_url_features(url, parsed, html_content)
         result['details']['extracted_features'] = features
         feature_names = [
