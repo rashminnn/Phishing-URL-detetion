@@ -3,11 +3,14 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . ./
-RUN npm run build --verbose  # Add verbose output for debugging
-RUN ls -la /app/build  # Log build directory contents
+RUN npm run build --verbose
+RUN ls -la /app/build
 
 FROM python:3.11-slim
 WORKDIR /app
+
+# Install libgomp1 and clean up
+RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
 
 # Copy files
 COPY --from=build /app/build ./build
@@ -28,4 +31,4 @@ RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Use exec form with environment variable
-CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--threads", "8", "--timeout", "120"]
