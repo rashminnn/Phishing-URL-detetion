@@ -472,8 +472,12 @@ def api_check():
 def serve_static(filename):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
     static_dir = os.path.join(build_dir, 'static')
-    logger.info(f"Serving static file: {os.path.join(static_dir, filename)}")
-    return send_from_directory(static_dir, filename)
+    try:
+        logger.info(f"Serving static file: {os.path.join(static_dir, filename)}")
+        return send_from_directory(static_dir, filename)
+    except FileNotFoundError:
+        logger.error(f"Static file not found: {os.path.join(static_dir, filename)}")
+        return jsonify({'error': 'Static file not found'}), 404
 
 # -------- Serve React Frontend Build --------
 @app.route('/logo192.png')
@@ -492,20 +496,24 @@ def serve_manifest():
 @app.route('/<path:path>')
 def serve_react_app(path):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    if os.path.exists(os.path.join(build_dir, 'index.html')):
-        logger.info(f"Serving index.html from: {os.path.join(build_dir, 'index.html')}")
-        return send_from_directory(build_dir, 'index.html')
-    logger.error(f"index.html not found at: {os.path.join(build_dir, 'index.html')}")
-    return jsonify({'error': 'Index file not found'}), 404
+    if not path.startswith('api/'):  # Avoid serving API routes as static
+        if os.path.exists(os.path.join(build_dir, 'index.html')):
+            logger.info(f"Serving index.html from: {os.path.join(build_dir, 'index.html')}")
+            return send_from_directory(build_dir, 'index.html')
+        logger.error(f"index.html not found at: {os.path.join(build_dir, 'index.html')}")
+        return jsonify({'error': 'Index file not found'}), 404
+    return jsonify({'error': 'API route not found'}), 404
 
 @app.errorhandler(404)
 def page_not_found(e):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    if os.path.exists(os.path.join(build_dir, 'index.html')):
-        logger.info(f"404: Serving index.html from {os.path.join(build_dir, 'index.html')}")
-        return send_from_directory(build_dir, 'index.html')
-    logger.error(f"404 Error: index.html not found at {os.path.join(build_dir, 'index.html')}")
-    return jsonify({'error': 'Page not found'}), 404
+    if not request.path.startswith('/api/'):  # Serve index.html for non-API 404s
+        if os.path.exists(os.path.join(build_dir, 'index.html')):
+            logger.info(f"404: Serving index.html from {os.path.join(build_dir, 'index.html')}")
+            return send_from_directory(build_dir, 'index.html')
+        logger.error(f"404 Error: index.html not found at {os.path.join(build_dir, 'index.html')}")
+        return jsonify({'error': 'Page not found'}), 404
+    return jsonify({'error': 'API endpoint not found'}), 404
 
 @app.errorhandler(500)
 def internal_server_error(e):
