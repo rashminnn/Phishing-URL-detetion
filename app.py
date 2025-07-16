@@ -45,8 +45,8 @@ except Exception as e:
     model = None
 
 # ---- Cache Configuration ----
-URL_CACHE = OrderedDict()  # Use OrderedDict for efficient cache eviction
-CACHE_TTL = 3600  # 1 hour
+URL_CACHE = OrderedDict()
+CACHE_TTL = 3600
 MAX_CACHE_SIZE = 1000
 
 # ---- Precompiled Patterns and Sets ----
@@ -97,15 +97,16 @@ URL_ENCODING_PATTERN = re.compile(r'%[0-9a-fA-F]{2}')
 HIGH_RISK_KEYWORDS_PATTERN = re.compile(
     r'\b(?:' + '|'.join([
         'login', 'signin', 'account', 'verification', 'verify', 'secure', 'security',
-        'update', 'urgent', 'suspended', 'limited', 'expired', 'confirmixing', 'password',
-        'credential', 'authenticate', 'wallet', 'recover', 'unlock'
+        'update', 'urgent', 'suspended', 'limited', 'expired', 'confirm', 'activate',
+        'password', 'credential', 'authenticate', 'wallet', 'recover', 'unlock'
     ]) + r')\b', re.IGNORECASE
 )
+UUID_PATTERN = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
 
 def sanitize_url(url):
     if not isinstance(url, str) or not url.strip():
         return ""
-    url = url.strip().lower()[:2000]  # Truncate early to avoid processing long URLs
+    url = url.strip().lower()[:2000]
     if not url.startswith(('http://', 'https://')):
         http_match = re.search(r'https?://[^\s]+', url)
         url = http_match.group(0) if http_match else 'http://' + url
@@ -124,7 +125,7 @@ def cache_result(url, result):
     url_hash = get_url_hash(url)
     URL_CACHE[url_hash] = {'result': result, 'timestamp': time.time()}
     if len(URL_CACHE) > MAX_CACHE_SIZE:
-        URL_CACHE.popitem(last=False)  # Efficiently remove oldest item
+        URL_CACHE.popitem(last=False)
 
 def get_cached_result(url):
     url_hash = get_url_hash(url)
@@ -184,7 +185,6 @@ def extract_url_features(url, parsed=None):
     domain = parsed.netloc.lower()
     subdomain, registered_domain = extract_domain_parts(url)
     
-    # Precompute string lengths and entropy
     url_length = len(url)
     domain_length = len(domain)
     url_length_norm = np.log1p(url_length)
@@ -193,16 +193,14 @@ def extract_url_features(url, parsed=None):
         if not s:
             return 0
         prob = np.array([s.count(c) / len(s) for c in set(s)])
-        return -np.sum(prob * np.log2(prob + 1e-10))  # Avoid log(0)
+        return -np.sum(prob * np.log2(prob + 1e-10))
 
     url_entropy = calculate_entropy(url)
     domain_entropy = calculate_entropy(domain)
     
-    # Subdomain features
     num_subdomains = max(1, subdomain.count('.') + 1) if subdomain else 0
     subdomain_ratio = num_subdomains / (domain_length + 1) if domain_length > 0 else 0
     
-    # Common subdomains and flags
     common_subdomains = {'www', 'mail', 'web', 'app', 'login', 'accounts', 'api', 'secure',
                          'dashboard', 'portal', 'admin', 'blog', 'shop', 'store', 'support',
                          'm', 'mobile', 'help', 'docs', 'developer', 'developers', 'community'}
@@ -211,8 +209,8 @@ def extract_url_features(url, parsed=None):
     has_suspicious_tld = int(bool(SUSPICIOUS_TLD_PATTERN.search(url)))
     has_at_symbol = int('@' in url)
     has_url_encoding = int(bool(URL_ENCODING_PATTERN.search(url)))
+    has_uuid = int(bool(UUID_PATTERN.search(url)))
     
-    # Keyword-based features
     brand_keywords = {'banking', 'paypal', 'amazon', 'microsoft', 'google', 'apple', 'facebook',
                       'whatsapp', 'netflix', 'instagram', 'twitter', 'linkedin', 'coinbase',
                       'blockchain', 'bank', 'chase', 'wellsfargo', 'citi', 'hsbc', 'barclays'}
@@ -222,7 +220,6 @@ def extract_url_features(url, parsed=None):
     has_high_risk_keywords = int(bool(HIGH_RISK_KEYWORDS_PATTERN.search(url)))
     has_brand_keywords = int(brand_only_in_path)
     
-    # Path and risk features
     path_depth = parsed.path.count('/')
     total_risk_count = (
         has_ip + has_suspicious_tld + has_at_symbol + has_url_encoding +
@@ -233,6 +230,8 @@ def extract_url_features(url, parsed=None):
         total_risk_count = max(0, total_risk_count - 1)
     if is_security_website(url):
         total_risk_count = max(0, total_risk_count - 2)
+    if has_uuid:
+        total_risk_count = max(0, total_risk_count - 1)
     
     return {
         'url_entropy': url_entropy,
@@ -246,7 +245,8 @@ def extract_url_features(url, parsed=None):
         'has_at_symbol': has_at_symbol,
         'has_brand_keywords': has_brand_keywords,
         'path_depth': path_depth,
-        'has_url_encoding': has_url_encoding
+        'has_url_encoding': has_url_encoding,
+        'has_uuid': has_uuid
     }
 
 def analyze_url(url):
@@ -284,7 +284,6 @@ def analyze_url(url):
         'details': {}
     }
 
-    # Parse URL once and reuse
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
@@ -299,18 +298,21 @@ def analyze_url(url):
         }
     except Exception as e:
         logger.error(f"Analysis [{analysis_id}] domain extraction error: {str(e)}")
-        result['details']['errors'] = [f"Domain extraction error: {str(e)}"]
+        result['details']['errors'] = [ Marisa Del Campo Albino
         result.update({
             'is_phishing': True,
             'confidence': 0.7,
             'risk_level': 'Medium',
-            'analysis_method': 'Error Fallback'
-        })
-        result['processing_time'] = time.time() - start_time
-        cache_result(url, result)
-        return result
+            'analysis_method': 'Error Fallback',
+            'details': {'errors': [禁止
+            result['processing_time'] = time.time() - start_time
+            result['processing_time'] = time.time() - start_time
+            cache_result(url, result)
+            logger.info(f"Analysis [{analysis_id}] completed in {result['processing_time']:.3f}s: " +
+                f"{'PHISHING' if result['is_phishing'] else 'LEGITIMATE'} " +
+                f"(confidence: {result['confidence']:.2f})")
+            return result
 
-    # Fast path for legitimate domains
     if is_legitimate_domain(url):
         result.update({
             'is_phishing': False,
@@ -331,7 +333,6 @@ def analyze_url(url):
         logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Verified Domain)")
         return result
 
-    # Fast path for security websites
     if is_security_website(url):
         result.update({
             'is_phishing': False,
@@ -352,21 +353,18 @@ def analyze_url(url):
         logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Security Website)")
         return result
 
-    # ML-based analysis
     try:
-        features = extract_url_features(url, parsed)  # Pass parsed URL to avoid re-parsing
+        features = extract_url_features(url, parsed)
         result['details']['extracted_features'] = features
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
             'subdomain_ratio', 'has_at_symbol', 'has_brand_keywords',
-            'path_depth', 'has_url_encoding'
+            'path_depth', 'has_url_encoding', 'has_uuid'
         ]
         
-        # Convert features to numpy array directly for faster inference
         feature_array = np.array([[features.get(name, 0) for name in feature_names]], dtype=np.float32)
         
-        # Model inference
         if model is None:
             raise ValueError("Model not loaded")
         prediction = model.predict(feature_array)[0]
@@ -377,7 +375,6 @@ def analyze_url(url):
             'raw_confidence': float(prediction_proba)
         }
 
-        # Calibration
         calibrated_confidence = prediction_proba
         calibration_factors = []
         common_subdomains = {'www', 'web', 'app', 'mail', 'login', 'accounts'}
@@ -396,6 +393,9 @@ def analyze_url(url):
         if any(keyword in registered_domain for keyword in security_keywords):
             calibrated_confidence *= 0.7
             calibration_factors.append(('security_keyword', 0.7))
+        if UUID_PATTERN.search(url):
+            calibrated_confidence *= 0.6
+            calibration_factors.append(('uuid_in_path', 0.6))
         
         calibrated_prediction = int(calibrated_confidence > 0.5)
         result['details']['calibration'] = {
@@ -430,7 +430,7 @@ def analyze_url(url):
                 f"(confidence: {result['confidence']:.2f})")
     return result
 
-# ---- Flask Routes (unchanged) ----
+# ---- Flask Routes ----
 @app.route('/api/test', methods=['GET'])
 def test_api():
     return jsonify({
