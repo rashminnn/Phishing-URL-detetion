@@ -329,3 +329,18 @@
 2025-07-16 05:33:36,403 - phishing_detector - INFO - Analysis [ca6661fa] started for URL: https://github.com/copilot/c/55b156c0-faea-494d-98ef-c0c91a150ab5#copilot-chat-textarea
 2025-07-16 05:33:36,403 - phishing_detector - INFO - Analysis [ca6661fa] completed: LEGITIMATE (Verified Domain)
 2025-07-16 05:33:36,403 - werkzeug - INFO - 127.0.0.1 - - [16/Jul/2025 05:33:36] "POST /predict HTTP/1.1" 200 -
+2025-07-16 16:01:13,723 - phishing_detector - INFO - Model loaded successfully from C:\Users\user\Desktop\ML\phishguard-react\phishing_model_xgboost.pkl
+2025-07-16 16:01:15,065 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.220.42:8080
+2025-07-16 16:01:15,146 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-16 16:01:15,302 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 16:01:40,842 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 16:01:41,171 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 16:01:41,290 - werkzeug - INFO -  * Debugger PIN: 797-069-327
+2025-07-16 16:02:48,752 - werkzeug - INFO -  * Detected change in 'C:\\Users\\user\\AppData\\Roaming\\Python\\Python311\\site-packages\\bs4\\__init__.py', reloading
+2025-07-16 16:02:50,567 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2025-07-16 16:03:23,098 - phishing_detector - INFO - Model loaded successfully from phishing_model_xgboost.pkl
+2025-07-16 16:03:23,394 - werkzeug - WARNING -  * Debugger is active!
+2025-07-16 16:03:23,451 - werkzeug - INFO -  * Debugger PIN: 797-069-327
