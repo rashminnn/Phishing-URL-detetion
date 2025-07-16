@@ -467,7 +467,7 @@ def api_check():
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during URL analysis'}), 500
 
-# -------- Serve React Static Files (fixes 404 for static assets) --------
+# -------- Serve React Static Files --------
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
@@ -492,18 +492,20 @@ def serve_manifest():
 @app.route('/<path:path>')
 def serve_react_app(path):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    target = os.path.join(build_dir, path)
-    if os.path.exists(target) and path != 'index.html':
-        logger.info(f"Serving file: {target}")
-        return send_from_directory(build_dir, path)
-    logger.info(f"Serving index.html from: {os.path.join(build_dir, 'index.html')}")
-    return send_from_directory(build_dir, 'index.html')
+    if os.path.exists(os.path.join(build_dir, 'index.html')):
+        logger.info(f"Serving index.html from: {os.path.join(build_dir, 'index.html')}")
+        return send_from_directory(build_dir, 'index.html')
+    logger.error(f"index.html not found at: {os.path.join(build_dir, 'index.html')}")
+    return jsonify({'error': 'Index file not found'}), 404
 
 @app.errorhandler(404)
 def page_not_found(e):
     build_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
-    logger.error(f"404 Error: Attempting to serve index.html from {os.path.join(build_dir, 'index.html')}")
-    return send_from_directory(build_dir, 'index.html')
+    if os.path.exists(os.path.join(build_dir, 'index.html')):
+        logger.info(f"404: Serving index.html from {os.path.join(build_dir, 'index.html')}")
+        return send_from_directory(build_dir, 'index.html')
+    logger.error(f"404 Error: index.html not found at {os.path.join(build_dir, 'index.html')}")
+    return jsonify({'error': 'Page not found'}), 404
 
 @app.errorhandler(500)
 def internal_server_error(e):
