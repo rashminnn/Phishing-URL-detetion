@@ -110,15 +110,18 @@ SUSPICIOUS_TITLE_PATTERN = re.compile(
 
 async def fetch_website_content(url):
     """Fetch website HTML content using aiohttp with error handling."""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=5, allow_redirects=True) as response:
+            async with session.get(url, timeout=10, allow_redirects=True, headers=headers) as response:
                 if response.status == 200:
                     content = await response.text()
                     logger.info(f"Successfully fetched content for {url} ({len(content)} bytes)")
                     return content[:10000]  # Limit to 10KB to avoid memory issues
                 else:
-                    logger.warning(f"Failed to fetch {url}: Status {response.status}")
+                    logger.warning(f"Failed to fetch {url}: Status {response.status}, Headers: {response.headers}")
                     return None
     except Exception as e:
         logger.error(f"Error fetching content for {url}: {str(e)}")
@@ -452,8 +455,12 @@ async def analyze_url_async(url):
         
         if model is None:
             raise ValueError("Model not loaded")
-        prediction = model.predict(df)[0]
-        prediction_proba = model.predict_proba(df)[0][1]
+        try:
+            prediction = model.predict(df)[0]
+            prediction_proba = model.predict_proba(df)[0][1]
+        except AttributeError as e:
+            logger.error(f"Model prediction failed: {str(e)}")
+            raise ValueError(f"Model compatibility error: {str(e)}")
         
         result['details']['ml_prediction'] = {
             'raw_prediction': int(prediction),
