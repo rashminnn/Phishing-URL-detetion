@@ -1,4 +1,6 @@
+```python
 import numpy as np
+import pandas as pd
 import joblib
 from flask import Flask, request, jsonify, send_from_directory
 from urllib.parse import urlparse, unquote
@@ -11,7 +13,6 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 import uuid
 from flask_cors import CORS
-from collections import OrderedDict
 import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
@@ -47,12 +48,52 @@ except Exception as e:
     model = None
 
 # ---- Cache Configuration ----
-URL_CACHE = OrderedDict()
-CONTENT_CACHE = OrderedDict()
+URL_CACHE = {}
 CACHE_TTL = 3600
 MAX_CACHE_SIZE = 1000
 
+# ---- Allowlist ----
+REPUTABLE_DOMAINS = {
+    'google.com', 'youtube.com', 'gmail.com', 'apple.com', 'icloud.com', 'microsoft.com',
+    'live.com', 'office.com', 'outlook.com', 'amazon.com', 'facebook.com', 'instagram.com',
+    'whatsapp.com', 'twitter.com', 'x.com', 'linkedin.com', 'github.com', 'adobe.com',
+    'dropbox.com', 'netflix.com', 'spotify.com', 'yahoo.com', 'bing.com', 'twitch.tv',
+    'reddit.com', 'ebay.com', 'paypal.com', 'zoom.us', 'teams.microsoft.com',
+    'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai', 'bard.google.com',
+    'copilot.microsoft.com', 'huggingface.co', 'stability.ai', 'midjourney.com',
+    'aws.amazon.com', 'azure.com', 'gcp.com', 'cloud.google.com', 'heroku.com',
+    'digitalocean.com', 'cloudflare.com', 'akamai.com', 'fastly.com',
+    'visa.com', 'mastercard.com', 'americanexpress.com', 'discover.com',
+    'stripe.com', 'square.com', 'venmo.com', 'cashapp.com',
+    'wordpress.com', 'shopify.com', 'salesforce.com', 'slack.com', 'canva.com',
+    'notion.so', 'figma.com', 'airtable.com', 'zendesk.com', 'atlassian.com',
+    'ycombinator.com'  # Added for bookface.ycombinator.com
+}
+SECURITY_WEBSITES = {
+    'phishtank.org', 'virustotal.com', 'haveibeenpwned.com', 'malwarebytes.com',
+    'kaspersky.com', 'norton.com', 'mcafee.com', 'symantec.com', 'trendmicro.com',
+    'f-secure.com', 'avast.com', 'avg.com', 'bitdefender.com', 'sophos.com',
+    'checkpoint.com', 'fortinet.com', 'paloaltonetworks.com', 'fireeye.com',
+    'shodan.io', 'censys.io', 'cvedetails.com', 'mitre.org', 'cisa.gov',
+    'cert.org', 'sans.org', 'owasp.org', 'securityfocus.com', 'exploit-db.com',
+    'kali.org', 'metasploit.com', 'wireshark.org', 'snort.org', 'hackthebox.eu',
+    'tryhackme.com', 'threatpost.com', 'bleepingcomputer.com', 'krebsonsecurity.com',
+    'securityweek.com', 'darkreading.com', 'schneier.com', 'hackread.com',
+    'thehackernews.com', 'cyberscoop.com', 'cybersecurityventures.com'
+}
+REPUTABLE_DOMAINS.update(SECURITY_WEBSITES)
+
 # ---- Precompiled Regex Patterns ----
+SUSPICIOUS_PATTERNS = re.compile(
+    r'|'.join([
+        r'(?<!\.)paypal(?!\.com)',
+        r'(?<!\.)apple(?!\.com)',
+        r'(?<!\.)amazon(?!\.com)',
+        r'\d{10,}',
+        r'[a-zA-Z0-9]{30,}',
+        r'(?<!\.)bank(?!\.[a-z]{2,3})'
+    ])
+)
 SUSPICIOUS_TLD_PATTERN = re.compile(r'\.(?:tk|ml|ga|cf|bit|pw|top|click|download|work|gq|xyz)(?:/|$)', re.IGNORECASE)
 IP_PATTERN = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 URL_ENCODING_PATTERN = re.compile(r'%[0-9a-fA-F]{2}')
@@ -64,95 +105,66 @@ HIGH_RISK_KEYWORDS_PATTERN = re.compile(
     ]) + r')\b', re.IGNORECASE
 )
 UUID_PATTERN = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
-SUBDOMAIN_PATTERN = re.compile(r'^[a-z0-9][a-z0-9\-]*[a-z0-9]$', re.IGNORECASE)
-SUSPICIOUS_PATTERNS = re.compile(
-    r'|'.join([
-        r'(?<!\.)paypal(?!\.com)',
-        r'(?<!\.)apple(?!\.com)',
-        r'(?<!\.)amazon(?!\.com)',
-        r'\d{10,}',
-        r'[a-zA-Z0-9]{30,}',
-        r'(?<!\.)bank(?!\.[a-z]{2,3})'
-    ])
+SUSPICIOUS_TITLE_PATTERN = re.compile(
+    r'\b(?:login|signin|verify|account|suspended|urgent|password|credential)\b', re.IGNORECASE
 )
 
-async def fetch_web_content(url):
-    """Fetch web content asynchronously with error handling."""
-    cache_key = hashlib.md5(url.encode('utf-8')).hexdigest()
-    if cache_key in CONTENT_CACHE and time.time() - CONTENT_CACHE[cache_key]['timestamp'] < CACHE_TTL:
-        return CONTENT_CACHE[cache_key]['content']
+async def fetch_website_content(url):
+    """Fetch website HTML content using aiohttp with error handling."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=5, allow_redirects=True) as response:
+                if response.status == 200:
+                    content = await response.text()
+                    return content[:10000]  # Limit to 10KB to avoid memory issues
+                else:
+                    logger.warning(f"Failed to fetch {url}: Status {response.status}")
+                    return None
+    except Exception as e:
+        logger.error(f"Error fetching content for {url}: {str(e)}")
+        return None
+
+def extract_content_features(html_content):
+    """Extract features from HTML content for phishing detection."""
+    if not html_content:
+        return {
+            'has_suspicious_title': 0,
+            'has_login_form': 0,
+            'external_script_count': 0
+        }
     
     try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get(url, allow_redirects=True) as response:
-                content = {
-                    'status_code': response.status,
-                    'html': await response.text() if response.status == 200 else '',
-                    'headers': dict(response.headers),
-                    'redirects': [r.url for r in response.history]
-                }
-                CONTENT_CACHE[cache_key] = {'content': content, 'timestamp': time.time()}
-                if len(CONTENT_CACHE) > MAX_CACHE_SIZE:
-                    CONTENT_CACHE.popitem(last=False)
-                return content
-    except Exception as e:
-        logger.warning(f"Failed to fetch content for {url}: {str(e)}")
-        return {'status_code': 0, 'html': '', 'headers': {}, 'redirects': []}
-
-def extract_web_features(content):
-    """Extract features from web content for ML model."""
-    html = content['html']
-    status_code = content['status_code']
-    headers = content['headers']
-    redirects = content['redirects']
-    
-    # Parse HTML with BeautifulSoup
-    soup = BeautifulSoup(html, 'html.parser') if html else None
-    
-    # Feature: Presence of login form
-    has_login_form = int(bool(soup and soup.find('form') and any(
-        input_tag.get('type') in ['password', 'email'] for input_tag in soup.find_all('input')
-    )))
-    
-    # Feature: Number of external scripts/links
-    external_resources = 0
-    if soup:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Extract title
+        title = soup.title.string if soup.title else ""
+        has_suspicious_title = int(bool(SUSPICIOUS_TITLE_PATTERN.search(title)))
+        
+        # Check for login forms
+        forms = soup.find_all('form')
+        has_login_form = int(any(
+            input_tag.get('type') in ['password', 'email'] or
+            input_tag.get('name', '').lower() in ['username', 'password', 'email', 'login']
+            for form in forms
+            for input_tag in form.find_all('input')
+        ))
+        
+        # Count external scripts
         scripts = soup.find_all('script', src=True)
-        links = soup.find_all('a', href=True)
-        external_resources = len([s for s in scripts if s['src'].startswith('http')]) + \
-                            len([l for l in links if l['href'].startswith('http')])
-    
-    # Feature: Presence of meta verification tags (e.g., Google, Facebook)
-    has_meta_verification = int(bool(soup and soup.find('meta', attrs={
-        'name': re.compile(r'google-site-verification|facebook-domain-verification', re.I)
-    })))
-    
-    # Feature: Redirect count
-    redirect_count = len(redirects)
-    
-    # Feature: Suspicious redirect (to different domain)
-    suspicious_redirect = 0
-    if redirects:
-        parsed_url = urlparse(content['url'])
-        for redirect_url in redirects:
-            redirect_domain = urlparse(str(redirect_url)).netloc.lower()
-            if redirect_domain and redirect_domain != parsed_url.netloc.lower():
-                suspicious_redirect = 1
-                break
-    
-    # Feature: Content length
-    content_length = len(html) if html else 0
-    content_length_norm = np.log1p(content_length)
-    
-    return {
-        'has_login_form': has_login_form,
-        'external_resources': external_resources,
-        'has_meta_verification': has_meta_verification,
-        'redirect_count': redirect_count,
-        'suspicious_redirect': suspicious_redirect,
-        'content_length_norm': content_length_norm,
-        'status_code': status_code / 1000.0  # Normalize status code
-    }
+        external_script_count = sum(1 for script in scripts if re.match(r'^https?://', script['src']))
+        
+        return {
+            'has_suspicious_title': has_suspicious_title,
+            'has_login_form': has_login_form,
+            'external_script_count': min(external_script_count, 10)  # Cap to avoid outliers
+        }
+    except Exception as e:
+        logger.error(f"Error parsing HTML content: {str(e)}")
+        return {
+            'has_suspicious_title': 0,
+            'has_login_form': 0,
+            'external_script_count': 0
+        }
 
 def sanitize_url(url):
     if not isinstance(url, str) or not url.strip():
@@ -173,10 +185,15 @@ def get_url_hash(url):
     return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 def cache_result(url, result):
+    if len(URL_CACHE) >= MAX_CACHE_SIZE:
+        oldest_urls = sorted(URL_CACHE.items(), key=lambda x: x[1]['timestamp'])[:100]
+        for url_hash, _ in oldest_urls:
+            URL_CACHE.pop(url_hash, None)
     url_hash = get_url_hash(url)
-    URL_CACHE[url_hash] = {'result': result, 'timestamp': time.time()}
-    if len(URL_CACHE) > MAX_CACHE_SIZE:
-        URL_CACHE.popitem(last=False)
+    URL_CACHE[url_hash] = {
+        'result': result,
+        'timestamp': time.time()
+    }
 
 def get_cached_result(url):
     url_hash = get_url_hash(url)
@@ -209,16 +226,28 @@ def extract_domain_parts(url):
         return "", ""
 
 @lru_cache(maxsize=1024)
-def is_gov_edu_domain(url):
-    """Minimal rule-based check for clearly legitimate TLDs."""
+def is_legitimate_domain(url):
     try:
-        _, registered_domain = extract_domain_parts(url)
+        subdomain, registered_domain = extract_domain_parts(url)
+        if not registered_domain:
+            return False
+        if registered_domain in REPUTABLE_DOMAINS or any(registered_domain.endswith(f".{rep}") for rep in REPUTABLE_DOMAINS):
+            return True
         return any(registered_domain.endswith(tld) for tld in ['.edu', '.gov', '.mil'])
     except Exception as e:
-        logger.warning(f"Error checking TLD for {url}: {str(e)}")
+        logger.warning(f"Error checking domain legitimacy for {url}: {str(e)}")
         return False
 
-def extract_url_features(url, parsed=None):
+@lru_cache(maxsize=1024)
+def is_security_website(url):
+    subdomain, registered_domain = extract_domain_parts(url)
+    if registered_domain in SECURITY_WEBSITES:
+        return True
+    security_keywords = {'security', 'secure', 'antivirus', 'anti-virus', 'protection',
+                         'firewall', 'scan', 'threat', 'defense', 'cyber', 'phish'}
+    return any(keyword in registered_domain for keyword in security_keywords) and not SUSPICIOUS_PATTERNS.search(url)
+
+def extract_url_features(url, parsed=None, html_content=None):
     if parsed is None:
         parsed = urlparse(url) if url else urlparse('')
     domain = parsed.netloc.lower()
@@ -240,7 +269,10 @@ def extract_url_features(url, parsed=None):
     num_subdomains = max(1, subdomain.count('.') + 1) if subdomain else 0
     subdomain_ratio = num_subdomains / (domain_length + 1) if domain_length > 0 else 0
     
-    has_common_subdomain = int(bool(subdomain and SUBDOMAIN_PATTERN.match(subdomain.lower())))
+    common_subdomains = {'www', 'mail', 'web', 'app', 'login', 'accounts', 'api', 'secure',
+                         'dashboard', 'portal', 'admin', 'blog', 'shop', 'store', 'support',
+                         'm', 'mobile', 'help', 'docs', 'developer', 'developers', 'community'}
+    has_common_subdomain = int(subdomain.lower() in common_subdomains)
     has_ip = int(bool(IP_PATTERN.search(url)))
     has_suspicious_tld = int(bool(SUSPICIOUS_TLD_PATTERN.search(url)))
     has_at_symbol = int('@' in url)
@@ -258,13 +290,22 @@ def extract_url_features(url, parsed=None):
     has_brand_keywords = int(brand_only_in_path)
     
     path_depth = parsed.path.count('/')
+    
+    # Extract content-based features
+    content_features = extract_content_features(html_content)
+    
     total_risk_count = (
         has_ip + has_suspicious_tld + has_at_symbol + has_url_encoding +
         (has_high_risk_keywords if not brand_in_domain else 0) +
-        (has_brand_keywords if not brand_in_domain else 0)
+        (has_brand_keywords if not brand_in_domain else 0) +
+        content_features['has_suspicious_title'] +
+        content_features['has_login_form'] +
+        (1 if content_features['external_script_count'] > 5 else 0)  # High script count is risky
     )
     if has_common_subdomain and registered_domain:
         total_risk_count = max(0, total_risk_count - 1)
+    if is_security_website(url):
+        total_risk_count = max(0, total_risk_count - 2)
     if has_uuid:
         total_risk_count = max(0, total_risk_count - 1)
     if has_https:
@@ -284,10 +325,26 @@ def extract_url_features(url, parsed=None):
         'path_depth': path_depth,
         'has_url_encoding': has_url_encoding,
         'has_uuid': has_uuid,
-        'has_https': has_https
+        'has_https': has_https,
+        'has_suspicious_title': content_features['has_suspicious_title'],
+        'has_login_form': content_features['has_login_form'],
+        'external_script_count': content_features['external_script_count']
     }
 
-async def analyze_url(url):
+async def analyze_url_async(url):
+    if not url:
+        return {
+            'url': url,
+            'analysis_id': str(uuid.uuid4())[:8],
+            'timestamp': datetime.now().isoformat(),
+            'processing_time': 0,
+            'is_phishing': True,
+            'confidence': 0.7,
+            'risk_level': 'Medium',
+            'analysis_method': 'Invalid URL',
+            'details': {'errors': ['Invalid or empty URL']}
+        }
+
     cached_result = get_cached_result(url)
     if cached_result:
         logger.info(f"Cache hit for URL: {url}")
@@ -308,18 +365,6 @@ async def analyze_url(url):
         'analysis_method': 'Unknown',
         'details': {}
     }
-
-    if not url:
-        result.update({
-            'is_phishing': True,
-            'confidence': 0.7,
-            'risk_level': 'Medium',
-            'analysis_method': 'Invalid URL',
-            'details': {'errors': ['Invalid or empty URL']}
-        })
-        result['processing_time'] = time.time() - start_time
-        cache_result(url, result)
-        return result
 
     try:
         parsed = urlparse(url)
@@ -344,83 +389,105 @@ async def analyze_url(url):
         })
         result['processing_time'] = time.time() - start_time
         cache_result(url, result)
+        logger.info(f"Analysis [{analysis_id}] completed in {result['processing_time']:.3f}s: " +
+                    f"{'PHISHING' if result['is_phishing'] else 'LEGITIMATE'} " +
+                    f"(confidence: {result['confidence']:.2f})")
         return result
 
-    if is_gov_edu_domain(url):
+    if is_legitimate_domain(url):
         result.update({
             'is_phishing': False,
             'confidence': 0.05,
             'risk_level': 'Low',
-            'analysis_method': 'TLD Check',
+            'analysis_method': 'Verified Domain Check',
             'details': {
                 **result['details'],
                 'verification': {
-                    'method': 'TLD Match',
+                    'method': 'Allowlist Match',
                     'matched': True,
-                    'notes': 'Domain has a trusted TLD (.edu, .gov, .mil).'
+                    'notes': 'Domain is on the verified legitimate domains list.'
                 }
             }
         })
         result['processing_time'] = time.time() - start_time
         cache_result(url, result)
-        logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Trusted TLD)")
+        logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Verified Domain)")
+        return result
+
+    if is_security_website(url):
+        result.update({
+            'is_phishing': False,
+            'confidence': 0.05,
+            'risk_level': 'Low',
+            'analysis_method': 'Security Website Recognition',
+            'details': {
+                **result['details'],
+                'verification': {
+                    'method': 'Security Website Recognition',
+                    'matched': True,
+                    'notes': 'URL belongs to a known security or antivirus website.'
+                }
+            }
+        })
+        result['processing_time'] = time.time() - start_time
+        cache_result(url, result)
+        logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Security Website)")
         return result
 
     try:
-        # Fetch web content
-        web_content = await fetch_web_content(url)
-        web_features = extract_web_features({'url': url, **web_content})
-        result['details']['web_features'] = web_features
-        
-        # Extract URL features
-        url_features = extract_url_features(url, parsed)
-        result['details']['url_features'] = url_features
-        
-        # Combine features
+        # Fetch website content
+        html_content = await fetch_website_content(url)
+        features = extract_url_features(url, parsed, html_content)
+        result['details']['extracted_features'] = features
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
             'subdomain_ratio', 'has_at_symbol', 'has_brand_keywords',
             'path_depth', 'has_url_encoding', 'has_uuid', 'has_https',
-            'has_login_form', 'external_resources', 'has_meta_verification',
-            'redirect_count', 'suspicious_redirect', 'content_length_norm',
-            'status_code'
+            'has_suspicious_title', 'has_login_form', 'external_script_count'
         ]
-        features = {**url_features, **web_features}
-        feature_array = np.array([[features.get(name, 0) for name in feature_names]], dtype=np.float32)
+        
+        df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
         
         if model is None:
             raise ValueError("Model not loaded")
-        prediction = model.predict(feature_array)[0]
-        prediction_proba = model.predict_proba(feature_array)[0][1]
+        prediction = model.predict(df)[0]
+        prediction_proba = model.predict_proba(df)[0][1]
         
         result['details']['ml_prediction'] = {
             'raw_prediction': int(prediction),
             'raw_confidence': float(prediction_proba)
         }
 
-        # Calibrate confidence
         calibrated_confidence = prediction_proba
         calibration_factors = []
+        common_subdomains = {'www', 'web', 'app', 'mail', 'login', 'accounts', 'api', 'secure',
+                             'dashboard', 'portal', 'admin', 'blog', 'shop', 'store', 'support',
+                             'm', 'mobile', 'help', 'docs', 'developer', 'developers', 'community'}
+        common_tlds = {'.com', '.org', '.net', '.edu', '.gov', '.io', '.co'}
+        security_keywords = {'security', 'secure', 'antivirus', 'protection', 'cyber', 'phish'}
         
-        if SUBDOMAIN_PATTERN.match(subdomain.lower()):
-            calibrated_confidence *= 0.8
-            calibration_factors.append(('valid_subdomain_format', 0.8))
-        if parsed.scheme == 'https':
+        if subdomain.lower() in common_subdomains:
             calibrated_confidence *= 0.7
-            calibration_factors.append(('has_https', 0.7))
-        if UUID_PATTERN.search(url):
+            calibration_factors.append(('common_subdomain', 0.7))
+        if any(registered_domain.endswith(tld) for tld in common_tlds):
+            calibrated_confidence *= 0.9
+            calibration_factors.append(('common_tld', 0.9))
+        if features['total_risk_count'] <= 1:
+            calibrated_confidence *= 0.8
+            calibration_factors.append(('low_risk_count', 0.8))
+        if any(keyword in registered_domain for keyword in security_keywords):
+            calibrated_confidence *= 0.7
+            calibration_factors.append(('security_keyword', 0.7))
+        if features['has_uuid']:
             calibrated_confidence *= 0.6
             calibration_factors.append(('uuid_in_path', 0.6))
-        if web_features['has_meta_verification']:
-            calibrated_confidence *= 0.6
-            calibration_factors.append(('has_meta_verification', 0.6))
-        if web_features['status_code'] == 0.2:  # 200 status
+        if features['has_https']:
+            calibrated_confidence *= 0.7
+            calibration_factors.append(('has_https', 0.7))
+        if not features['has_suspicious_title'] and not features['has_login_form']:
             calibrated_confidence *= 0.8
-            calibration_factors.append(('successful_response', 0.8))
-        if web_features['redirect_count'] == 0:
-            calibrated_confidence *= 0.9
-            calibration_factors.append(('no_redirects', 0.9))
+            calibration_factors.append(('no_suspicious_content', 0.8))
         
         calibrated_prediction = int(calibrated_confidence > 0.5)
         result['details']['calibration'] = {
@@ -455,6 +522,15 @@ async def analyze_url(url):
                 f"(confidence: {result['confidence']:.2f})")
     return result
 
+def analyze_url(url):
+    """Synchronous wrapper for async analyze_url_async."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(analyze_url_async(url))
+    finally:
+        loop.close()
+
 # ---- Flask Routes ----
 @app.route('/api/test', methods=['GET'])
 def test_api():
@@ -465,7 +541,7 @@ def test_api():
     })
 
 @app.route('/predict', methods=['POST'])
-async def predict():
+def predict():
     if not request.is_json:
         return jsonify({'error': 'JSON request required'}), 400
     try:
@@ -473,7 +549,7 @@ async def predict():
         url = sanitize_url(url)
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
-        result = await analyze_url(url)
+        result = analyze_url(url)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Request error: {str(e)}")
@@ -499,7 +575,7 @@ def feedback():
         return jsonify({'error': 'Failed to process feedback'}), 500
 
 @app.route('/api/check', methods=['POST'])
-async def api_check():
+def api_check():
     if not request.is_json:
         return jsonify({'error': 'JSON request required'}), 400
     try:
@@ -509,7 +585,7 @@ async def api_check():
         url = sanitize_url(url)
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
-        result = await analyze_url(url)
+        result = analyze_url(url)
         api_response = {
             'url': result['url'],
             'is_phishing': result['is_phishing'],
