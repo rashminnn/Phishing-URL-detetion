@@ -88,8 +88,26 @@ REPUTABLE_DOMAINS = {
     'google.com', 'youtube.com', 'gmail.com', 'apple.com', 'microsoft.com',
     'amazon.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'github.com',
     'paypal.com', 'netflix.com', 'spotify.com', 'yahoo.com', 'reddit.com',
-    'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai', 'grok.com'  # Added grok.com
+    'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai', 'grok.com',
+    'railway.app'  # Added railway.app to prevent self-analysis
 }
+
+# ---- Self-reference protection ----
+def is_self_reference(url):
+    """Check if URL is pointing to this application itself"""
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        # Check for Railway domains and your specific app domain
+        return any([
+            'phishguard.up.railway.app' in domain,
+            'railway.app' in domain,
+            domain == 'localhost',
+            domain.startswith('127.'),
+            domain.startswith('0.0.0.0')
+        ])
+    except Exception:
+        return False
 
 # ---- Precompiled Regex Patterns ----
 SUSPICIOUS_PATTERNS = re.compile(
@@ -118,30 +136,56 @@ SUSPICIOUS_TITLE_PATTERN = re.compile(
 )
 
 async def fetch_website_content(url):
-    """Fetch website HTML content with retry logic and memory optimization"""
+    """Fetch website HTML content with retry logic and proper session cleanup"""
+    if is_self_reference(url):
+        logger.warning(f"Skipping self-reference URL: {url}")
+        return None
+    
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
     ]
-    timeout = aiohttp.ClientTimeout(total=10)
+    
+    # Reduced timeout to prevent worker timeouts
+    timeout = aiohttp.ClientTimeout(total=8, connect=3)
+    
     for attempt, user_agent in enumerate(user_agents, 1):
         headers = {'User-Agent': user_agent}
+        session = None
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, allow_redirects=True, headers=headers) as response:
-                    if response.status == 200:
-                        content = await response.text()
-                        content = content[:5000]  # 5KB limit
-                        logger.info(f"Successfully fetched content for {url} ({len(content)} bytes) on attempt {attempt}")
-                        return content
-                    else:
-                        logger.warning(f"Attempt {attempt} failed for {url}: Status {response.status}, Headers: {response.headers}")
+            # Create session with proper cleanup
+            session = aiohttp.ClientSession(
+                timeout=timeout,
+                connector=aiohttp.TCPConnector(limit=10, ttl_dns_cache=300, use_dns_cache=True)
+            )
+            
+            async with session.get(url, allow_redirects=True, headers=headers) as response:
+                if response.status == 200:
+                    content = await response.text()
+                    content = content[:5000]  # 5KB limit
+                    logger.info(f"Successfully fetched content for {url} ({len(content)} bytes) on attempt {attempt}")
+                    return content
+                else:
+                    logger.warning(f"Attempt {attempt} failed for {url}: Status {response.status}")
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout on attempt {attempt} for {url}")
         except Exception as e:
             logger.error(f"Attempt {attempt} error fetching content for {url}: {str(e)}")
+        finally:
+            # Ensure proper cleanup
+            if session:
+                try:
+                    await session.close()
+                except Exception as e:
+                    logger.warning(f"Error closing session: {e}")
+        
+        # Don't retry if it's the last attempt
         if attempt < len(user_agents):
             logger.info(f"Retrying {url} with different User-Agent")
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)  # Reduced retry delay
+            
     logger.error(f"All attempts to fetch {url} failed")
     return None
 
@@ -314,7 +358,7 @@ def extract_url_features(url, parsed=None, html_content=None):
     }
 
 async def analyze_url_async(url):
-    """Analyze URL with memory optimization"""
+    """Analyze URL with memory optimization and self-reference protection"""
     if not url:
         return {
             'url': url,
@@ -326,6 +370,25 @@ async def analyze_url_async(url):
             'risk_level': 'Medium',
             'analysis_method': 'Invalid URL',
             'details': {'errors': ['Invalid or empty URL'], 'content_fetched': False}
+        }
+
+    # Check for self-reference first
+    if is_self_reference(url):
+        return {
+            'url': url,
+            'analysis_id': str(uuid.uuid4())[:8],
+            'timestamp': datetime.now().isoformat(),
+            'processing_time': 0.001,
+            'is_phishing': False,
+            'confidence': 0.05,
+            'risk_level': 'Low',
+            'analysis_method': 'Self-Reference Protection',
+            'details': {
+                'errors': [],
+                'content_fetched': False,
+                'self_reference': True,
+                'note': 'Cannot analyze own application domain'
+            }
         }
 
     cached_result = get_cached_result(url)
@@ -382,7 +445,13 @@ async def analyze_url_async(url):
             logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Verified Domain)")
             return result
 
-        html_content = await fetch_website_content(url)
+        # Set a timeout for the entire content fetching process
+        try:
+            html_content = await asyncio.wait_for(fetch_website_content(url), timeout=15)
+        except asyncio.TimeoutError:
+            logger.warning(f"Content fetch timeout for {url}")
+            html_content = None
+        
         result['details']['content_fetched'] = html_content is not None
         if not html_content:
             result['details']['errors'].append("Failed to fetch website content")
@@ -484,9 +553,18 @@ def predict():
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Check for self-reference before processing
+        if is_self_reference(url):
+            return jsonify({
+                'error': 'Cannot analyze own application domain',
+                'is_phishing': False,
+                'confidence': 0.05
+            }), 400
+        
+        # Use asyncio with proper event loop handling
         try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             result = loop.run_until_complete(analyze_url_async(url))
             return jsonify(result)
         finally:
@@ -526,9 +604,17 @@ def api_check():
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Check for self-reference before processing
+        if is_self_reference(url):
+            return jsonify({
+                'error': 'Cannot analyze own application domain',
+                'is_phishing': False,
+                'confidence': 0.05
+            }), 400
+        
         try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             result = loop.run_until_complete(analyze_url_async(url))
             api_response = {
                 'url': result['url'],
