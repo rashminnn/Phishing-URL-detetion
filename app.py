@@ -17,6 +17,11 @@ import asyncio
 from bs4 import BeautifulSoup
 import gc
 import psutil
+import warnings
+
+# Suppress XGBoost FutureWarning specifically
+warnings.filterwarnings('ignore', category=FutureWarning, module='xgboost')
+warnings.filterwarnings('ignore', message='Index.format is deprecated')
 
 app = Flask(__name__, static_folder='build', static_url_path='')
 CORS(app)
@@ -54,7 +59,10 @@ def load_model():
         memory_before = process.memory_info().rss / 1024 / 1024  # MB
         logger.info(f"Memory before model loading: {memory_before:.2f} MB")
         
-        model = joblib.load(MODEL_PATH)
+        # Suppress warnings during model loading
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = joblib.load(MODEL_PATH)
         
         memory_after = process.memory_info().rss / 1024 / 1024  # MB
         logger.info(f"Memory after model loading: {memory_after:.2f} MB")
@@ -396,8 +404,11 @@ async def analyze_url_async(url):
         df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
         
         try:
-            prediction = model.predict(df)[0]
-            prediction_proba = model.predict_proba(df)[0][1]
+            # Suppress warnings during model prediction
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                prediction = model.predict(df)[0]
+                prediction_proba = model.predict_proba(df)[0][1]
             logger.info(f"Model prediction for {url}: raw_prediction={prediction}, confidence={prediction_proba:.2f}")
         except Exception as e:
             logger.error(f"Model prediction failed: {str(e)}")
