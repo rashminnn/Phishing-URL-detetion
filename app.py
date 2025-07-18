@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 import gc
 import psutil
 import warnings
+from collections import Counter
 
 # Suppress XGBoost FutureWarning specifically
 warnings.filterwarnings('ignore', category=FutureWarning, module='xgboost')
@@ -130,10 +131,16 @@ HIGH_RISK_KEYWORDS_PATTERN = re.compile(
         'password', 'credential', 'authenticate', 'wallet', 'recover', 'unlock'
     ]) + r')\b', re.IGNORECASE
 )
-UUID_PATTERN = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.IGNORECASE)
-SUSPICIOUS_TITLE_PATTERN = re.compile(
-    r'\b(?:login|signin|verify|account|suspended|urgent|password|credential)\b', re.IGNORECASE
-)
+
+# Brand keywords for detection
+BRAND_KEYWORDS = {
+    'paypal', 'apple', 'amazon', 'microsoft', 'google', 'facebook', 'twitter',
+    'instagram', 'linkedin', 'netflix', 'spotify', 'ebay', 'alibaba', 'whatsapp',
+    'telegram', 'signal', 'dropbox', 'adobe', 'oracle', 'salesforce', 'zoom',
+    'slack', 'discord', 'github', 'gitlab', 'bitbucket', 'stackoverflow',
+    'banking', 'bank', 'visa', 'mastercard', 'amex', 'discover', 'chase',
+    'wells', 'fargo', 'citibank', 'bofa', 'hsbc', 'barclays', 'santander'
+}
 
 async def fetch_website_content(url):
     """Fetch website HTML content with retry logic and proper session cleanup"""
@@ -163,7 +170,7 @@ async def fetch_website_content(url):
             async with session.get(url, allow_redirects=True, headers=headers) as response:
                 if response.status == 200:
                     content = await response.text()
-                    content = content[:5000]  # 5KB limit
+                    content = content[:10000]  # Increased to 10KB for better analysis
                     logger.info(f"Successfully fetched content for {url} ({len(content)} bytes) on attempt {attempt}")
                     return content
                 else:
@@ -188,49 +195,6 @@ async def fetch_website_content(url):
             
     logger.error(f"All attempts to fetch {url} failed")
     return None
-
-def extract_content_features(html_content):
-    """Extract features from HTML content with memory optimization"""
-    if not html_content:
-        return {
-            'has_suspicious_title': 0,
-            'has_login_form': 0,
-            'external_script_count': 0
-        }
-    
-    try:
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        title = soup.title.string if soup.title else ""
-        has_suspicious_title = int(bool(SUSPICIOUS_TITLE_PATTERN.search(title)))
-        
-        forms = soup.find_all('form')
-        has_login_form = int(any(
-            input_tag.get('type') in ['password', 'email'] or
-            input_tag.get('name', '').lower() in ['username', 'password', 'email', 'login']
-            for form in forms
-            for input_tag in form.find_all('input')
-        ))
-        
-        scripts = soup.find_all('script', src=True)
-        external_script_count = sum(1 for script in scripts if re.match(r'^https?://', script['src']))
-        
-        logger.info(f"Content features extracted: title_suspicious={has_suspicious_title}, login_form={has_login_form}, scripts={external_script_count}")
-        
-        soup.decompose()
-        
-        return {
-            'has_suspicious_title': has_suspicious_title,
-            'has_login_form': has_login_form,
-            'external_script_count': min(external_script_count, 10)
-        }
-    except Exception as e:
-        logger.error(f"Error parsing HTML content: {str(e)}")
-        return {
-            'has_suspicious_title': 0,
-            'has_login_form': 0,
-            'external_script_count': 0
-        }
 
 def sanitize_url(url):
     if not isinstance(url, str) or not url.strip():
@@ -298,11 +262,14 @@ def is_legitimate_domain(url):
         return False
 
 def extract_url_features(url, parsed=None, html_content=None):
+    """Extract features that match the trained model exactly"""
     if parsed is None:
         parsed = urlparse(url) if url else urlparse('')
+    
     domain = parsed.netloc.lower()
     subdomain, registered_domain = extract_domain_parts(url)
     
+    # Basic URL metrics
     url_length = len(url)
     domain_length = len(domain)
     url_length_norm = np.log1p(url_length)
@@ -310,33 +277,55 @@ def extract_url_features(url, parsed=None, html_content=None):
     def calculate_entropy(s):
         if not s:
             return 0
-        prob = np.array([s.count(c) / len(s) for c in set(s)])
-        return -np.sum(prob * np.log2(prob + 1e-10))
+        char_counts = Counter(s)
+        total_chars = len(s)
+        entropy = -sum((count/total_chars) * np.log2(count/total_chars) for count in char_counts.values())
+        return entropy
 
     url_entropy = calculate_entropy(url)
     domain_entropy = calculate_entropy(domain)
     
+    # Subdomain analysis
     num_subdomains = max(1, subdomain.count('.') + 1) if subdomain else 0
     subdomain_ratio = num_subdomains / (domain_length + 1) if domain_length > 0 else 0
     
+    # Pattern-based features
     has_ip = int(bool(IP_PATTERN.search(url)))
     has_suspicious_tld = int(bool(SUSPICIOUS_TLD_PATTERN.search(url)))
     has_at_symbol = int('@' in url)
     has_url_encoding = int(bool(URL_ENCODING_PATTERN.search(url)))
-    has_uuid = int(bool(UUID_PATTERN.search(url)))
-    has_https = int(parsed.scheme == 'https')
     has_high_risk_keywords = int(bool(HIGH_RISK_KEYWORDS_PATTERN.search(url)))
     
+    # Brand keyword detection - check if URL contains brand names but isn't the official domain
+    has_brand_keywords = 0
+    url_lower = url.lower()
+    domain_lower = domain.lower()
+    
+    for brand in BRAND_KEYWORDS:
+        if brand in url_lower:
+            # Check if it's NOT the official domain
+            if not (domain_lower.endswith(f"{brand}.com") or domain_lower == f"{brand}.com"):
+                has_brand_keywords = 1
+                break
+    
+    # Path analysis
     path_depth = parsed.path.count('/')
     
-    content_features = extract_content_features(html_content)
-    
+    # Calculate total risk count
     total_risk_count = (
         has_ip + has_suspicious_tld + has_at_symbol + has_url_encoding +
-        has_high_risk_keywords + content_features['has_suspicious_title'] +
-        content_features['has_login_form']
+        has_high_risk_keywords + has_brand_keywords
     )
     
+    logger.info(f"Extracted features for {url}: "
+                f"entropy={url_entropy:.2f}, "
+                f"domain_entropy={domain_entropy:.2f}, "
+                f"has_ip={has_ip}, "
+                f"suspicious_tld={has_suspicious_tld}, "
+                f"brand_keywords={has_brand_keywords}, "
+                f"risk_count={total_risk_count}")
+    
+    # Return only the 12 features that match the trained model
     return {
         'url_entropy': url_entropy,
         'domain_entropy': domain_entropy,
@@ -347,18 +336,13 @@ def extract_url_features(url, parsed=None, html_content=None):
         'url_length_norm': url_length_norm,
         'subdomain_ratio': subdomain_ratio,
         'has_at_symbol': has_at_symbol,
-        'has_brand_keywords': 0,
+        'has_brand_keywords': has_brand_keywords,
         'path_depth': path_depth,
-        'has_url_encoding': has_url_encoding,
-        'has_uuid': has_uuid,
-        'has_https': has_https,
-        'has_suspicious_title': content_features['has_suspicious_title'],
-        'has_login_form': content_features['has_login_form'],
-        'external_script_count': content_features['external_script_count']
+        'has_url_encoding': has_url_encoding
     }
 
 async def analyze_url_async(url):
-    """Analyze URL with memory optimization and self-reference protection"""
+    """Analyze URL with actual website content fetching"""
     if not url:
         return {
             'url': url,
@@ -425,6 +409,7 @@ async def analyze_url_async(url):
             'scheme': parsed.scheme
         }
         
+        # Check if it's a known legitimate domain first
         if is_legitimate_domain(url):
             result.update({
                 'is_phishing': False,
@@ -445,32 +430,42 @@ async def analyze_url_async(url):
             logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Verified Domain)")
             return result
 
-        # Set a timeout for the entire content fetching process
+        # Fetch website content for analysis
+        logger.info(f"Fetching content for URL: {url}")
         try:
             html_content = await asyncio.wait_for(fetch_website_content(url), timeout=15)
+            result['details']['content_fetched'] = html_content is not None
+            if html_content:
+                result['details']['content_size'] = len(html_content)
+                logger.info(f"Content fetched successfully: {len(html_content)} bytes")
+            else:
+                result['details']['errors'].append("Failed to fetch website content")
+                logger.warning(f"Failed to fetch content for {url}")
         except asyncio.TimeoutError:
             logger.warning(f"Content fetch timeout for {url}")
             html_content = None
+            result['details']['content_fetched'] = False
+            result['details']['errors'].append("Content fetch timeout")
         
-        result['details']['content_fetched'] = html_content is not None
-        if not html_content:
-            result['details']['errors'].append("Failed to fetch website content")
-        
+        # Extract features (this will work with or without content)
         features = extract_url_features(url, parsed, html_content)
         result['details']['extracted_features'] = features
         
         if model is None:
             raise ValueError("Model not loaded")
         
+        # Prepare features for model prediction (exact order matters)
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
             'subdomain_ratio', 'has_at_symbol', 'has_brand_keywords',
-            'path_depth', 'has_url_encoding', 'has_uuid', 'has_https',
-            'has_suspicious_title', 'has_login_form', 'external_script_count'
+            'path_depth', 'has_url_encoding'
         ]
         
+        # Create dataframe with features in exact order
         df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
+        
+        logger.info(f"Features prepared for model: {dict(zip(feature_names, df.iloc[0].values))}")
         
         try:
             # Suppress warnings during model prediction
@@ -478,7 +473,7 @@ async def analyze_url_async(url):
                 warnings.simplefilter("ignore")
                 prediction = model.predict(df)[0]
                 prediction_proba = model.predict_proba(df)[0][1]
-            logger.info(f"Model prediction for {url}: raw_prediction={prediction}, confidence={prediction_proba:.2f}")
+            logger.info(f"Model prediction for {url}: raw_prediction={prediction}, confidence={prediction_proba:.3f}")
         except Exception as e:
             logger.error(f"Model prediction failed: {str(e)}")
             raise ValueError(f"Model prediction error: {str(e)}")
@@ -488,17 +483,26 @@ async def analyze_url_async(url):
             'raw_confidence': float(prediction_proba)
         }
 
+        # Apply calibration based on additional factors
         calibrated_confidence = prediction_proba
         calibration_factors = []
-        if features['has_uuid']:
-            calibrated_confidence *= 0.6
-            calibration_factors.append(('uuid_in_path', 0.6))
-        if features['has_https']:
-            calibrated_confidence *= 0.7
-            calibration_factors.append(('has_https', 0.7))
-        if not features['has_suspicious_title'] and not features['has_login_form']:
-            calibrated_confidence *= 0.8
-            calibration_factors.append(('no_suspicious_content', 0.8))
+        
+        # Adjust confidence based on content fetching success
+        if not result['details']['content_fetched']:
+            calibrated_confidence *= 1.1  # Slightly increase suspicion if we couldn't fetch content
+            calibration_factors.append(('content_fetch_failed', 1.1))
+        
+        # Adjust based on specific feature patterns
+        if features['has_brand_keywords'] and features['has_suspicious_tld']:
+            calibrated_confidence *= 1.2  # High risk combination
+            calibration_factors.append(('brand_keywords_suspicious_tld', 1.2))
+        
+        if features['has_ip']:
+            calibrated_confidence *= 1.15  # IP addresses are suspicious
+            calibration_factors.append(('ip_address', 1.15))
+        
+        # Cap the confidence
+        calibrated_confidence = min(calibrated_confidence, 0.99)
         
         calibrated_prediction = int(calibrated_confidence > 0.5)
         result['details']['calibration'] = {
@@ -511,7 +515,7 @@ async def analyze_url_async(url):
             'is_phishing': bool(calibrated_prediction),
             'confidence': float(calibrated_confidence),
             'risk_level': 'High' if calibrated_confidence > 0.8 else 'Medium' if calibrated_confidence > 0.5 else 'Low',
-            'analysis_method': 'Machine Learning Analysis'
+            'analysis_method': 'ML Analysis with Website Content'
         })
         
     except Exception as e:
@@ -528,7 +532,7 @@ async def analyze_url_async(url):
     cache_result(url, result)
     logger.info(f"Analysis [{analysis_id}] completed in {result['processing_time']:.3f}s: "
                 f"{'PHISHING' if result['is_phishing'] else 'LEGITIMATE'} "
-                f"(confidence: {result['confidence']:.2f})")
+                f"(confidence: {result['confidence']:.3f})")
     
     gc.collect()
     
