@@ -140,7 +140,7 @@ Please ensure your code follows the project's coding standards and includes appr
 
 ## Contact
 For questions, issues, or suggestions, please:
-- Open an issue on the [GitHub repository](https://github.com/rashminnn/Phishing-URL-detetion).
+- Open an issue on the [GitHub repository]([https://github.com/rashminnn/Phishing-URL-detetion](https://github.com/rashminnn/Phishing-URL-detetion/issues]).
 - Contact the maintainer via:
   - **Email**: [rashminpunthila10@gmail.com](mailto:rashminpunthila10@gmail.com)
   - **LinkedIn**: [Rashmin Munasinghe](https://www.linkedin.com/in/rashmin-munasinghe-313b58299/)
