@@ -35,7 +35,7 @@ The project evaluates multiple machine learning models based on accuracy, F1 sco
 | Decision Tree       | 0.9207   | 0.8693   | 0.9486 | 0.9048    | 0.8366 | 1.0963            |
 | Random Forest       | 0.9357   | 0.8962   | 0.9767 | 0.9130    | 0.8799 | 312.8794          |
 | XGBoost             | **0.9301**   | **0.8885**   | **0.9739** | **0.8930**    | **0.8840** | **4.1395**            |
-| Logistic Regression | 0.8744   | 0.7692   | 0.8748 | 0.7800    | 0.8000 | 111.7700          |
+| Logistic Regression | 0.8744   | 0.7692   | 0.8748 | 0.9141    | 0.6640 | 111.7700          |
 
 **Recommended Model**: XGBoost  
 - **F1 Score**: 0.8885  
