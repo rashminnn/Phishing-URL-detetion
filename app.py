@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from urllib.parse import urlparse, unquote
 import re
 import os
@@ -24,7 +24,8 @@ from collections import Counter
 warnings.filterwarnings('ignore', category=FutureWarning, module='xgboost')
 warnings.filterwarnings('ignore', message='Index.format is deprecated')
 
-app = Flask(__name__, static_folder='build', static_url_path='')
+# Flask app - NO static folder for backend-only deployment
+app = Flask(__name__)
 CORS(app)
 
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
@@ -38,7 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler()  # Only log to console to save memory
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger('phishing_detector')
@@ -90,7 +91,7 @@ REPUTABLE_DOMAINS = {
     'amazon.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'github.com',
     'paypal.com', 'netflix.com', 'spotify.com', 'yahoo.com', 'reddit.com',
     'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai', 'grok.com',
-    'railway.app'  # Added railway.app to prevent self-analysis
+    'huggingface.co'  # Added huggingface
 }
 
 # ---- Self-reference protection ----
@@ -99,10 +100,9 @@ def is_self_reference(url):
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
-        # Check for Railway domains and your specific app domain
         return any([
-            'phishguard.up.railway.app' in domain,
-            'railway.app' in domain,
+            'huggingface.co' in domain,
+            'hf.space' in domain,
             domain == 'localhost',
             domain.startswith('127.'),
             domain.startswith('0.0.0.0')
@@ -154,14 +154,12 @@ async def fetch_website_content(url):
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
     ]
     
-    # Reduced timeout to prevent worker timeouts
     timeout = aiohttp.ClientTimeout(total=8, connect=3)
     
     for attempt, user_agent in enumerate(user_agents, 1):
         headers = {'User-Agent': user_agent}
         session = None
         try:
-            # Create session with proper cleanup
             session = aiohttp.ClientSession(
                 timeout=timeout,
                 connector=aiohttp.TCPConnector(limit=10, ttl_dns_cache=300, use_dns_cache=True)
@@ -170,7 +168,7 @@ async def fetch_website_content(url):
             async with session.get(url, allow_redirects=True, headers=headers) as response:
                 if response.status == 200:
                     content = await response.text()
-                    content = content[:10000]  # Increased to 10KB for better analysis
+                    content = content[:10000]
                     logger.info(f"Successfully fetched content for {url} ({len(content)} bytes) on attempt {attempt}")
                     return content
                 else:
@@ -181,17 +179,15 @@ async def fetch_website_content(url):
         except Exception as e:
             logger.error(f"Attempt {attempt} error fetching content for {url}: {str(e)}")
         finally:
-            # Ensure proper cleanup
             if session:
                 try:
                     await session.close()
                 except Exception as e:
                     logger.warning(f"Error closing session: {e}")
         
-        # Don't retry if it's the last attempt
         if attempt < len(user_agents):
             logger.info(f"Retrying {url} with different User-Agent")
-            await asyncio.sleep(0.5)  # Reduced retry delay
+            await asyncio.sleep(0.5)
             
     logger.error(f"All attempts to fetch {url} failed")
     return None
@@ -269,7 +265,6 @@ def extract_url_features(url, parsed=None, html_content=None):
     domain = parsed.netloc.lower()
     subdomain, registered_domain = extract_domain_parts(url)
     
-    # Basic URL metrics
     url_length = len(url)
     domain_length = len(domain)
     url_length_norm = np.log1p(url_length)
@@ -285,33 +280,27 @@ def extract_url_features(url, parsed=None, html_content=None):
     url_entropy = calculate_entropy(url)
     domain_entropy = calculate_entropy(domain)
     
-    # Subdomain analysis
     num_subdomains = max(1, subdomain.count('.') + 1) if subdomain else 0
     subdomain_ratio = num_subdomains / (domain_length + 1) if domain_length > 0 else 0
     
-    # Pattern-based features
     has_ip = int(bool(IP_PATTERN.search(url)))
     has_suspicious_tld = int(bool(SUSPICIOUS_TLD_PATTERN.search(url)))
     has_at_symbol = int('@' in url)
     has_url_encoding = int(bool(URL_ENCODING_PATTERN.search(url)))
     has_high_risk_keywords = int(bool(HIGH_RISK_KEYWORDS_PATTERN.search(url)))
     
-    # Brand keyword detection - check if URL contains brand names but isn't the official domain
     has_brand_keywords = 0
     url_lower = url.lower()
     domain_lower = domain.lower()
     
     for brand in BRAND_KEYWORDS:
         if brand in url_lower:
-            # Check if it's NOT the official domain
             if not (domain_lower.endswith(f"{brand}.com") or domain_lower == f"{brand}.com"):
                 has_brand_keywords = 1
                 break
     
-    # Path analysis
     path_depth = parsed.path.count('/')
     
-    # Calculate total risk count
     total_risk_count = (
         has_ip + has_suspicious_tld + has_at_symbol + has_url_encoding +
         has_high_risk_keywords + has_brand_keywords
@@ -325,7 +314,6 @@ def extract_url_features(url, parsed=None, html_content=None):
                 f"brand_keywords={has_brand_keywords}, "
                 f"risk_count={total_risk_count}")
     
-    # Return only the 12 features that match the trained model
     return {
         'url_entropy': url_entropy,
         'domain_entropy': domain_entropy,
@@ -356,7 +344,6 @@ async def analyze_url_async(url):
             'details': {'errors': ['Invalid or empty URL'], 'content_fetched': False}
         }
 
-    # Check for self-reference first
     if is_self_reference(url):
         return {
             'url': url,
@@ -409,7 +396,6 @@ async def analyze_url_async(url):
             'scheme': parsed.scheme
         }
         
-        # Check if it's a known legitimate domain first
         if is_legitimate_domain(url):
             result.update({
                 'is_phishing': False,
@@ -430,7 +416,6 @@ async def analyze_url_async(url):
             logger.info(f"Analysis [{analysis_id}] completed: LEGITIMATE (Verified Domain)")
             return result
 
-        # Fetch website content for analysis
         logger.info(f"Fetching content for URL: {url}")
         try:
             html_content = await asyncio.wait_for(fetch_website_content(url), timeout=15)
@@ -447,14 +432,12 @@ async def analyze_url_async(url):
             result['details']['content_fetched'] = False
             result['details']['errors'].append("Content fetch timeout")
         
-        # Extract features (this will work with or without content)
         features = extract_url_features(url, parsed, html_content)
         result['details']['extracted_features'] = features
         
         if model is None:
             raise ValueError("Model not loaded")
         
-        # Prepare features for model prediction (exact order matters)
         feature_names = [
             'url_entropy', 'domain_entropy', 'has_ip', 'has_suspicious_tld',
             'has_high_risk_keywords', 'total_risk_count', 'url_length_norm',
@@ -462,13 +445,11 @@ async def analyze_url_async(url):
             'path_depth', 'has_url_encoding'
         ]
         
-        # Create dataframe with features in exact order
         df = pd.DataFrame([{name: features.get(name, 0) for name in feature_names}])
         
         logger.info(f"Features prepared for model: {dict(zip(feature_names, df.iloc[0].values))}")
         
         try:
-            # Suppress warnings during model prediction
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 prediction = model.predict(df)[0]
@@ -483,25 +464,21 @@ async def analyze_url_async(url):
             'raw_confidence': float(prediction_proba)
         }
 
-        # Apply calibration based on additional factors
         calibrated_confidence = prediction_proba
         calibration_factors = []
         
-        # Adjust confidence based on content fetching success
         if not result['details']['content_fetched']:
-            calibrated_confidence *= 1.1  # Slightly increase suspicion if we couldn't fetch content
+            calibrated_confidence *= 1.1
             calibration_factors.append(('content_fetch_failed', 1.1))
         
-        # Adjust based on specific feature patterns
         if features['has_brand_keywords'] and features['has_suspicious_tld']:
-            calibrated_confidence *= 1.2  # High risk combination
+            calibrated_confidence *= 1.2
             calibration_factors.append(('brand_keywords_suspicious_tld', 1.2))
         
         if features['has_ip']:
-            calibrated_confidence *= 1.15  # IP addresses are suspicious
+            calibrated_confidence *= 1.15
             calibration_factors.append(('ip_address', 1.15))
         
-        # Cap the confidence
         calibrated_confidence = min(calibrated_confidence, 0.99)
         
         calibrated_prediction = int(calibrated_confidence > 0.5)
@@ -539,6 +516,23 @@ async def analyze_url_async(url):
     return result
 
 # ---- Flask Routes ----
+@app.route('/')
+def home():
+    """API home route"""
+    return jsonify({
+        'message': 'PhishGuard API - Phishing URL Detection',
+        'status': 'online',
+        'version': '1.0',
+        'endpoints': {
+            '/': 'GET - API information',
+            '/api/test': 'GET - Test API status',
+            '/predict': 'POST - Analyze URL (full details)',
+            '/api/check': 'POST - Check URL (simplified)',
+            '/feedback': 'POST - Submit feedback'
+        },
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/test', methods=['GET'])
 def test_api():
     return jsonify({
@@ -557,7 +551,6 @@ def predict():
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
         
-        # Check for self-reference before processing
         if is_self_reference(url):
             return jsonify({
                 'error': 'Cannot analyze own application domain',
@@ -565,7 +558,6 @@ def predict():
                 'confidence': 0.05
             }), 400
         
-        # Use asyncio with proper event loop handling
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -608,7 +600,6 @@ def api_check():
         if not url:
             return jsonify({'error': 'Invalid or empty URL provided'}), 400
         
-        # Check for self-reference before processing
         if is_self_reference(url):
             return jsonify({
                 'error': 'Cannot analyze own application domain',
@@ -636,20 +627,9 @@ def api_check():
         logger.error(f"API error: {str(e)}")
         return jsonify({'error': 'An error occurred during analysis'}), 500
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_react_app(path):
-    if path != '' and not path.startswith('api/'):
-        return send_from_directory(app.static_folder, path)
-    if not path.startswith('api/'):
-        return send_from_directory(app.static_folder, 'index.html')
-    return jsonify({'error': 'API route not found'}), 404
-
 @app.errorhandler(404)
 def page_not_found(e):
-    if not request.path.startswith('/api/'):
-        return send_from_directory(app.static_folder, 'index.html')
-    return jsonify({'error': 'API endpoint not found'}), 404
+    return jsonify({'error': 'Endpoint not found'}), 404
 
 @app.errorhandler(500)
 def internal_server_error(e):
@@ -659,5 +639,5 @@ if __name__ == '__main__':
     if model is None:
         logger.critical("Cannot start - model failed to load")
         exit(1)
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT', 7860))
     app.run(debug=False, host='0.0.0.0', port=port)
