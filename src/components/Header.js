@@ -26,16 +26,6 @@ const Header = () => {
               <li className="nav-item">
                 <Link className="nav-link" to="/history">History</Link>
               </li>
-              <li className="nav-item">
-                <a 
-                  className="nav-link" 
-                  href="https://github.com/rashminnn" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <i className="fab fa-github me-1"></i> GitHub
-                </a>
-              </li>
             </ul>
           </div>
         </div>
