@@ -83,7 +83,7 @@ To set up the project locally, follow these steps:
 ## Deployment
 ### Live Application
 The project is deployed and accessible at:  
-🔗 [PhishGuard Live](https://phishguard.up.railway.app/)
+🔗 [PhishGuard Live](https://phishingg.netlify.app/)
 
 ### Local Deployment
 1. **Backend API**:
