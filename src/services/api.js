@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://rashminnn-phishing.hf.space';
+const API_URL = process.env.REACT_APP_API_URL || 'https://rashminnn-phishingurl.hf.space';
 console.log('Using API URL:', API_URL);
 
 // Create an axios instance
